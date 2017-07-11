@@ -6,6 +6,7 @@
 from collections import OrderedDict
 from functools import partial
 import gzip
+from itertools import islice
 from os import path
 import pickle
 from tempfile import TemporaryFile
@@ -220,6 +221,88 @@ CIFARSanityCheck = compose(
     cifar_sanity_check
 )
 CanevetICML2016 = compose(InMemoryDataset.from_loadable, canevet_icml2016_nn)
+
+
+class GeneratorDataset(BaseDataset):
+    """GeneratorDataset wraps a generator (or two) and partially implements the
+    BaseDataset interface."""
+    def __init__(self, train_data, test_data=None, test_data_length=None):
+        self._train_data_gen = train_data
+        self._test_data_gen = test_data
+        self._test_data_len = test_data_length
+
+        # Determine the shapes and sizes
+        x, y = next(self._train_data_gen)
+        self._batch_size = len(x)
+        self._shape = x.shape[1:]
+        self._output_size = y.shape[1] if len(y.shape) > 1 else 1
+
+    def _get_count(self, idxs):
+        if isinstance(idxs, slice):
+            # Use 2**32 as infinity
+            start, stop, step = idxs.indices(2**32)
+            return (stop - start)/step
+        elif isinstance(idxs, (list, np.ndarray)):
+            return len(idxs)
+        elif isinstance(idxs, int):
+            return 1
+        else:
+            raise IndexError("Invalid indices passed to dataset")
+
+    def _get_n_batches(self, generator, n_batches):
+        batches = list(islice(generator, n_batches))
+
+        return tuple(map(np.vstack, zip(*batches)))
+
+    def _train_data(self, idxs=slice(None)):
+        N = self._get_count(idxs)
+        n_batches = N / self._batch_size + int(N % self._batch_size != 0)
+
+        x, y = self._get_n_batches(self._train_data_gen, n_batches)
+
+        return x[:N], y[:N]
+
+    def _train_size(self):
+        raise RuntimeError("This dataset has no size")
+
+    def _test_data(self, idxs=slice(None)):
+        # No test data
+        if self._test_data_gen is None:
+            raise RuntimeError("This dataset has no test data")
+
+        # Test data are all in memory
+        if isinstance(self._test_data_gen, (tuple, list, np.ndarray)):
+            x, y = self._test_data_gen
+            return x[idxs], y[idxs]
+
+        # Test data are provided via a generator
+        N = min(self._test_data_len, self._get_count(idxs))
+        n_batches = N / self._batch_size + int(N % self._batch_size != 0)
+
+        x, y = self._get_n_batches(self._test_data_gen, n_batches)
+
+        return x[:N], y[:N]
+
+    def _test_size(self):
+        # No test data
+        if self._test_data_gen is None:
+            raise RuntimeError("This dataset has no test data")
+
+        # Test data are all in memory
+        if isinstance(self._test_data_gen, (tuple, list, np.ndarray)):
+            x, y = self._test_data_gen
+            return len(x)
+
+        # Test data are provided via a generator
+        return self._test_data_len
+
+    @property
+    def shape(self):
+        return self._shape
+
+    @property
+    def output_size(self):
+        return self._output_size
 
 
 class AugmentedImages(BaseDataset):

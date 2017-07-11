@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 
 from importance_sampling.datasets import CIFAR10, CIFARSanityCheck, MNIST, \
-    CanevetICML2016, OntheflyAgumentedImages, PennTreeBank
+    CanevetICML2016, OntheflyAgumentedImages, PennTreeBank, GeneratorDataset
 from importance_sampling.utils.functional import compose
 
 
@@ -100,6 +100,74 @@ class TestDatasets(unittest.TestCase):
             x, y = dset.train_data[idxs]
             self.assertTrue(np.all(x_r == x))
             self.assertTrue(np.all(y_r == y))
+
+    def test_generator(self):
+        def data():
+            while True:
+                yield np.random.rand(32, 10), np.random.rand(32, 1)
+
+        # Test with training data only
+        dset = GeneratorDataset(data())
+        self.assertEqual(dset.shape, (10,))
+        self.assertEqual(dset.output_size, 1)
+        with self.assertRaises(RuntimeError):
+            len(dset.train_data)
+        x, y = dset.train_data[:10]
+        self.assertEqual(10, len(x))
+        self.assertEqual(10, len(y))
+        x, y = dset.train_data[:100]
+        self.assertEqual(100, len(x))
+        self.assertEqual(100, len(y))
+        x, y = dset.train_data[[1, 2, 17]]
+        self.assertEqual(3, len(x))
+        self.assertEqual(3, len(y))
+        x, y = dset.train_data[99]
+        self.assertEqual(1, len(x))
+        self.assertEqual(1, len(y))
+        with self.assertRaises(RuntimeError):
+            len(dset.test_data)
+        with self.assertRaises(RuntimeError):
+            dset.test_data[0]
+
+        # Test with in memory test data
+        test_data = (np.random.rand(120, 10), np.random.rand(120, 1))
+        dset = GeneratorDataset(data(), test_data)
+        self.assertEqual(dset.shape, (10,))
+        self.assertEqual(dset.output_size, 1)
+        with self.assertRaises(RuntimeError):
+            len(dset.train_data)
+        x, y = dset.train_data[:10]
+        self.assertEqual(10, len(x))
+        self.assertEqual(10, len(y))
+        x, y = dset.train_data[:100]
+        self.assertEqual(100, len(x))
+        self.assertEqual(100, len(y))
+        x, y = dset.train_data[[1, 2, 17]]
+        self.assertEqual(3, len(x))
+        self.assertEqual(3, len(y))
+        x, y = dset.train_data[99]
+        self.assertEqual(1, len(x))
+        self.assertEqual(1, len(y))
+        self.assertEqual(120, len(dset.test_data))
+        self.assertTrue(np.all(test_data[0] == dset.test_data[:][0]))
+        idxs = [10, 20, 33]
+        self.assertTrue(np.all(test_data[1][idxs] == dset.test_data[idxs][1]))
+
+        # Test with generator test data
+        dset = GeneratorDataset(data(), data(), 120)
+        self.assertEqual(120, len(dset.test_data))
+        x, y = dset.test_data[:10]
+        self.assertEqual(10, len(x))
+        self.assertEqual(10, len(y))
+        x, y = dset.test_data[:100]
+        self.assertEqual(100, len(x))
+        self.assertEqual(100, len(y))
+        x, y = dset.test_data[[1, 2, 17]]
+        self.assertEqual(3, len(x))
+        self.assertEqual(3, len(y))
+        x, y = dset.test_data[99]
+        self.assertEqual(1, len(x))
+        self.assertEqual(1, len(y))
 
 
 if __name__ == "__main__":
