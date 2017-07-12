@@ -358,7 +358,8 @@ def main(argv):
         "model",
         choices=[
             "small_nn", "small_cnn", "cnn", "elu_cnn", "lstm_lm", "lstm_lm2",
-            "lstm_lm3", "small_cnn_sq"
+            "lstm_lm3", "small_cnn_sq", "wide_resnet_16_4", "wide_resnet_28_10",
+            "wide_resnet_16_4_dropout", "wide_resnet_28_10_dropout"
         ],
         help="Choose the NN model to build"
     )

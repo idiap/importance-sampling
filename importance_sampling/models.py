@@ -16,7 +16,8 @@ from keras.layers import    \
     GlobalAveragePooling2D, \
     Input,                  \
     LSTM,                   \
-    MaxPooling2D
+    MaxPooling2D,           \
+    add
 from keras.models import Model, Sequential
 from keras.optimizers import SGD
 
@@ -331,6 +332,70 @@ def build_small_cnn_squared(input_shape, output_size):
     return model
 
 
+def wide_resnet(L, k, drop_rate=0.0):
+    """Implement the WRN-L-k from 'Wide Residual Networks' BMVC 2016"""
+    def wide_resnet_impl(input_shape, output_size):
+        def conv(channels, strides,
+                 params=dict(padding="same", use_bias=False)):
+            def inner(x):
+                x = BatchNormalization()(x)
+                x = Activation("relu")(x)
+                x = Convolution2D(channels, 3, strides=strides, **params)(x)
+                x = Dropout(drop_rate)(x) if drop_rate > 0 else x
+                x = BatchNormalization()(x)
+                x = Activation("relu")(x)
+                x = Convolution2D(channels, 3, **params)(x)
+                return x
+            return inner
+
+        def resize(x, shape):
+            if K.int_shape(x) == shape:
+                return x
+            channels = shape[3 if K.image_data_format() == "channels_last" else 1]
+            strides = K.int_shape(x)[2] / shape[2]
+            return Convolution2D(
+                channels, 1, padding="same", use_bias=False, strides=strides
+            )(x)
+
+        def block(channels, k, n, strides):
+            def inner(x):
+                for i in range(n):
+                    x2 = conv(channels*k, strides if i==0 else 1)(x)
+                    x = add([resize(x, K.int_shape(x2)), x2])
+                return x
+            return inner
+
+        # According to the paper L = 6*n+4
+        n = (L-4)/6
+
+        group0 = Convolution2D(16, 3, padding="same", use_bias=False)
+        group1 = block(16, k, n, 1)
+        group2 = block(32, k, n, 2)
+        group3 = block(64, k, n, 2)
+
+        x_in = x = Input(shape=input_shape)
+        x = group0(x)
+        x = group1(x)
+        x = group2(x)
+        x = group3(x)
+
+        x = BatchNormalization()(x)
+        x = Activation("relu")(x)
+        x = GlobalAveragePooling2D()(x)
+        x = Dense(output_size)(x)
+        y = Activation("softmax")(x)
+
+        model = Model(inputs=x_in, outputs=y)
+        model.compile(
+            loss="categorical_crossentropy",
+            optimizer="adam",
+            metrics=["accuracy"]
+        )
+
+        return model
+    return wide_resnet_impl
+
+
 def get(name):
     models = {
         "small_nn": build_small_nn,
@@ -342,5 +407,9 @@ def get(name):
         "lstm_lm": build_lstm_lm,
         "lstm_lm2": build_lstm_lm2,
         "lstm_lm3": build_lstm_lm3,
+        "wide_resnet_16_4": wide_resnet(16, 4),
+        "wide_resnet_16_4_dropout": wide_resnet(16, 4, 0.3),
+        "wide_resnet_28_10": wide_resnet(28, 10),
+        "wide_resnet_28_10_dropout": wide_resnet(28, 10, 0.3)
     }
     return models[name]
