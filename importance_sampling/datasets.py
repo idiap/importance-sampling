@@ -289,35 +289,44 @@ class OntheflyAgumentedImages(BaseDataset):
         self.generator.fit(self.dataset.train_data[:][0])
 
         # Create an LRU cache to speed things up a bit for the transforms
-        self.cache = OrderedDict()
-        self.cache_size = cache_size or len(self.dataset.train_data)
+        cache_size = cache_size or len(self.dataset.train_data)
+        self.cache = OrderedDict([(-i,i) for i in range(cache_size)])
+        self.cache_data = np.empty(shape=(cache_size,) + self.dataset.shape)
 
     def _transform(self, idx, x):
         # if it is not cached add it
         if idx not in self.cache:
-            if len(self.cache) >= self.cache_size:
-                self.cache.popitem(last=False)
+            # Remove the first in and add the new idx (i is the offset in
+            # cache_data)
+            _, i = self.cache.popitem(last=False)
+            self.cache[idx] = i
+
+            # Do the transformation and add it to the data
             np.random.seed(idx + self.random_state)
-            self.cache[idx] = self.generator.random_transform(x)
-        else:  # and if it is update it as the most recently used
+            x = self.generator.random_transform(x)
+            x = self.generator.standardize(x)
+            self.cache_data[i] = x
+
+        # and if it is update it as the most recently used
+        else:
             self.cache[idx] = self.cache.pop(idx)
 
-        return self.cache[idx]
+        return self.cache_data[self.cache[idx]]
 
     def _train_data(self, idxs=slice(None)):
         # Get the original images and then transform them
         x, y = self.dataset.train_data[self.idxs[idxs]]
-        x_hat = np.zeros_like(x)
+        x_hat = np.copy(x)
         random_state = np.random.get_state()
         for i, idx in enumerate(idxs):
-            x_hat[i] = self._transform(idx, x[i])
-        x_hat = self.generator.standardize(x_hat)
+            x_hat[i] = self._transform(idx, x_hat[i])
         np.random.set_state(random_state)
 
         return x_hat, y
 
     def _test_data(self, idxs=slice(None)):
-        return self.dataset.test_data[idxs]
+        x, y = self.dataset.test_data[idxs]
+        return self.generator.standardize(x), y
 
     def _train_size(self):
         return self.N

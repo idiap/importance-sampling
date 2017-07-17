@@ -107,6 +107,21 @@ def load_dataset(dataset, hyperparams):
             )),
             CIFAR10
         ),
+        "cifar10-whitened-augmented": compose(
+            partial(OntheflyAgumentedImages, ___, dict(
+                featurewise_center=False,
+                samplewise_center=False,
+                featurewise_std_normalization=False,
+                samplewise_std_normalization=False,
+                zca_whitening=True,
+                rotation_range=0,
+                width_shift_range=0.1,
+                height_shift_range=0.1,
+                horizontal_flip=True,
+                vertical_flip=False
+            )),
+            CIFAR10
+        ),
         "cifar100-augmented": compose(
             partial(OntheflyAgumentedImages, ___, dict(
                 featurewise_center=False,
@@ -384,7 +399,7 @@ def main(argv):
             "canevet-icml2016-jittered", "canevet-icml2016",
             "canevet-icml2016-smooth", "cifar-sanity-check", "mnist",
             "cifar10", "cifar100", "cifar10-augmented", "cifar100-augmented",
-            "ptb"
+            "ptb", "cifar10-whitened-augmented"
         ],
         help="Choose the dataset to train on"
     )

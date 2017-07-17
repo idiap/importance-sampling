@@ -78,6 +78,29 @@ class TestDatasets(unittest.TestCase):
             self.assertTrue(np.all(x_r == x))
             self.assertTrue(np.all(y_r == y))
 
+        dset = OntheflyAgumentedImages(
+            CIFAR10(),
+            dict(
+                featurewise_center=False,
+                samplewise_center=False,
+                featurewise_std_normalization=False,
+                samplewise_std_normalization=False,
+                zca_whitening=True,
+                rotation_range=0,
+                width_shift_range=0.1,
+                height_shift_range=0.1,
+                horizontal_flip=True,
+                vertical_flip=False
+            )
+        )
+
+        idxs = np.random.choice(len(dset.train_data), 100)
+        x_r, y_r = dset.train_data[idxs]
+        for i in range(10):
+            x, y = dset.train_data[idxs]
+            self.assertTrue(np.all(x_r == x))
+            self.assertTrue(np.all(y_r == y))
+
 
 if __name__ == "__main__":
     unittest.main()
