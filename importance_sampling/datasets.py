@@ -288,10 +288,18 @@ class OntheflyAgumentedImages(BaseDataset):
         # Fit the generator
         self.generator.fit(self.dataset.train_data[:][0])
 
+        # Standardize the test data
+        self._x_test = np.copy(self.dataset.test_data[:][0])
+        self._x_test = self.generator.standardize(self._x_test)
+        self._y_test = self.dataset.test_data[:][1]
+
         # Create an LRU cache to speed things up a bit for the transforms
         cache_size = cache_size or len(self.dataset.train_data)
         self.cache = OrderedDict([(-i,i) for i in range(cache_size)])
-        self.cache_data = np.empty(shape=(cache_size,) + self.dataset.shape)
+        self.cache_data = np.empty(
+            shape=(cache_size,) + self.dataset.shape,
+            dtype=np.float32
+        )
 
     def _transform(self, idx, x):
         # if it is not cached add it
@@ -325,8 +333,7 @@ class OntheflyAgumentedImages(BaseDataset):
         return x_hat, y
 
     def _test_data(self, idxs=slice(None)):
-        x, y = self.dataset.test_data[idxs]
-        return self.generator.standardize(x), y
+        return self._x_test[idxs], self._y_test[idxs]
 
     def _train_size(self):
         return self.N
