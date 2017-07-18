@@ -6,7 +6,7 @@
 from keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
 import numpy as np
 
-from .datasets import InMemoryDataset
+from .datasets import InMemoryDataset, GeneratorDataset
 from .model_wrappers import OracleWrapper
 from .samplers import AdaptiveAdditiveSmoothingSampler, \
     AdditiveSmoothingSampler, ModelSampler, LSTMSampler
@@ -88,6 +88,53 @@ class _BaseImportanceTraining(object):
             y_test,
             categorical=False  # this means use the targets as is
         )
+
+        return self.fit_dataset(
+            dataset=dataset,
+            batch_size=batch_size,
+            epochs=epochs,
+            steps_per_epoch=steps_per_epoch,
+            verbose=verbose,
+            callbacks=callbacks
+        )
+
+    def fit_generator(self, train, steps_per_epoch, batch_size=32,
+                      epochs=1, verbose=1, callbacks=None,
+                      validation_data=None, validation_steps=None):
+        """Create a GeneratorDataset instance and train the model using
+        importance sampling for a given number of epochs.
+
+        NOTICE: This method may not be supported by all importance training
+        classes and may result in NotImplementedError()
+
+        Arguments
+        ---------
+            train: A generator that returns tuples (inputs, targets)
+            steps_per_epoch: int, number of gradient updates before considering
+                             an epoch has passed
+            batch_size: int, the number of samples per gradient update (ideally
+                             set to the number of items returned by the
+                             generator at each call)
+            epochs: int, multiplied by steps_per_epoch denotes the total number
+                    of gradient updates
+            verbose: {0, >0}, whether to use the progress bar Keras callback
+            validation_data: generator or tuple (inputs, targets)
+            validation_steps: None or int, used only if validation_data is a
+                              generator
+        """
+        # Create the validation data to pass to the GeneratorDataset
+        if validation_data is not None:
+            if isinstance(validation_data, (tuple, list)):
+                test = validation_data
+                test_len = None
+            else:
+                test = validation_data
+                test_len = validation_steps * batch_size
+        else:
+            test = (np.empty(shape=(0, 1)), np.empty(shape=(0, 1)))
+            test_len = None
+
+        dataset = GeneratorDataset(train, test, test_len)
 
         return self.fit_dataset(
             dataset=dataset,
@@ -284,3 +331,7 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
 
     def sampler(self, dataset):
         return self._sampler(dataset)
+
+    def fit_generator(*args, **kwargs):
+        raise NotImplementedError("ApproximateImportanceTraining doesn't "
+                                  "support generator training")

@@ -12,6 +12,15 @@ from keras.models import Model
 import numpy as np
 
 
+def _get_dataset_length(dset, default=1):
+    """Return the dataset's training data length and in case the dataset is
+    uncountable return a defalt value."""
+    try:
+        return len(dset.train_data)
+    except RuntimeError:
+        return default
+
+
 class BaseSampler(object):
     """BaseSampler denotes the interface for all the samplers.
 
@@ -76,7 +85,9 @@ class UniformSampler(BaseSampler):
     dataset uniformly."""
     def __init__(self, dataset, reweighting):
         super(UniformSampler, self).__init__(dataset, reweighting)
-        self.idxs = np.arange(len(self.dataset.train_data))
+        # Basically if we don't know the length the indices don't matter so
+        # sample batch_size 0s.
+        self.idxs = np.arange(_get_dataset_length(self.dataset, default=1))
 
     def _get_samples_with_scores(self, batch_size):
         return (
@@ -98,6 +109,7 @@ class ModelSampler(BaseSampler):
         self.model = model
         self.large_batch = large_batch
         self.forward_batch_size = forward_batch_size
+        self.N = _get_dataset_length(dataset, default=1)
 
         super(ModelSampler, self).__init__(dataset, reweighting)
 
@@ -105,7 +117,7 @@ class ModelSampler(BaseSampler):
         assert batch_size < self.large_batch
 
         # Sample a large number of points in random and score them
-        idxs = np.random.choice(len(self.dataset.train_data), self.large_batch)
+        idxs = np.random.choice(self.N, self.large_batch)
         x, y = self.dataset.train_data[idxs]
         scores = self.model.score(x, y, batch_size=self.forward_batch_size)
 

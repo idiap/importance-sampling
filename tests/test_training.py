@@ -34,6 +34,28 @@ class TestTraining(unittest.TestCase):
             self.assertTrue("loss" in history.history)
             self.assertEqual(len(history.history["loss"]), 5)
 
+    def test_generator_training(self):
+        def gen():
+            while True:
+                yield np.random.rand(16, 2), np.random.rand(16, 2)
+        x_val, y_val = np.random.rand(32, 2), np.random.rand(32, 2)
+
+        for Training in [ImportanceTraining]:
+            model = Training(self.model)
+
+            history = model.fit_generator(
+                gen(), validation_data=(x_val, y_val),
+                steps_per_epoch=8, epochs=5
+            )
+            self.assertTrue("loss" in history.history)
+            self.assertEqual(len(history.history["loss"]), 5)
+
+        with self.assertRaises(NotImplementedError):
+            ApproximateImportanceTraining(self.model).fit_generator(
+                gen(), validation_data=(x_val, y_val),
+                steps_per_epoch=8, epochs=5
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
