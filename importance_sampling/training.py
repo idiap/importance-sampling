@@ -57,7 +57,8 @@ class _BaseImportanceTraining(object):
                               evaluation
             validation_data: tuple of numpy arrays, Data to evaluate the
                              trained model on without ever training on them
-
+            steps_per_epoch: int or None, number of gradient updates before
+                             considering an epoch has passed
         Returns
         -------
             A Keras `History` object that contains information collected during
@@ -251,12 +252,12 @@ class ImportanceTraining(_BaseImportanceTraining):
                 adding `smooth` to all probabilities and renormalizing
         adaptive_smoothing: bool, If True the `smooth` argument is a percentage
                             of the average training loss
-        large_batch: int, the number of samples to presample for scoring
+        presample: int, the number of samples to presample for scoring
         forward_batch_size: int, the batch size to use for the forward pass
                             during scoring
     """
     def __init__(self, model, k=0.5, smooth=0.0, adaptive_smoothing=False,
-                 large_batch=1024, forward_batch_size=128):
+                 presample=1024, forward_batch_size=128):
         # Create the reweighting policy
         self._reweighting = BiasedReweightingPolicy(k)
 
@@ -275,7 +276,7 @@ class ImportanceTraining(_BaseImportanceTraining):
             ___,
             self.reweighting,
             self.model,
-            large_batch=large_batch,
+            large_batch=presample,
             forward_batch_size=forward_batch_size
         )
         if adaptive_smoothing and smooth > 0:
@@ -304,8 +305,10 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
                 adding `smooth` to all probabilities and renormalizing
         adaptive_smoothing: bool, If True the `smooth` argument is a percentage
                             of the average training loss
+        presample: int, the number of samples to presample for scoring
     """
-    def __init__(self, model, k=0.5, smooth=0.0, adaptive_smoothing=False):
+    def __init__(self, model, k=0.5, smooth=0.0, adaptive_smoothing=False,
+                 presample=2048):
         # Create the reweighting policy
         self._reweighting = BiasedReweightingPolicy(k)
 
@@ -319,7 +322,12 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
         additive_smoothing_factory = partial(
             AdditiveSmoothingSampler, ___, smooth
         )
-        self._sampler = partial(LSTMSampler, ___, self.reweighting)
+        self._sampler = partial(
+            LSTMSampler,
+            ___,
+            self.reweighting,
+            presample=presample
+        )
         if adaptive_smoothing and smooth > 0:
             self._sampler = compose(adaptive_smoothing_factory, self._sampler)
         elif smooth > 0:
