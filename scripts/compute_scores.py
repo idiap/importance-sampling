@@ -10,7 +10,7 @@ import numpy as np
 
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, MNIST, \
-    OntheflyAgumentedImages, PennTreeBank
+    OntheflyAugmentedImages, PennTreeBank
 from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -22,7 +22,7 @@ def load_dataset(dataset):
         "cifar10": CIFAR10,
         "cifar100": CIFAR100,
         "cifar10-augmented": compose(
-            partial(OntheflyAgumentedImages, ___, dict(
+            partial(OntheflyAugmentedImages, ___, dict(
                 featurewise_center=False,
                 samplewise_center=False,
                 featurewise_std_normalization=False,
@@ -37,7 +37,7 @@ def load_dataset(dataset):
             CIFAR10
         ),
         "cifar100-augmented": compose(
-            partial(OntheflyAgumentedImages, ___, dict(
+            partial(OntheflyAugmentedImages, ___, dict(
                 featurewise_center=False,
                 samplewise_center=False,
                 featurewise_std_normalization=False,

@@ -49,7 +49,7 @@ list of deviations or additions:
 * `class_weights`, `sample_weights` are **not** supported
 * `fit_generator` accepts a `batch_size` argument
 * `fit_generator` is not supported by all `ImportanceTraining` classes
-* `fit_dataset` has been added as a method (see [Datasets]())
+* `fit_dataset` has been added as a method (see [Datasets](datasets.md))
 
 Below, follows the list of methods with their arguments.
 

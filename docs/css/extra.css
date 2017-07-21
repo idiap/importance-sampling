@@ -10,6 +10,14 @@ body {
     width: 50%;
     float: left;
 }
+.fig.col-3 > img {
+    width: 33%;
+    float: left;
+}
+.fig.col-4 > img {
+    width: 25%;
+    float: left;
+}
 .fig > span {
     display: block;
     font-size: 85%;

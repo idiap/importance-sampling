@@ -9,7 +9,7 @@ import unittest
 import numpy as np
 
 from importance_sampling.datasets import CIFAR10, CIFARSanityCheck, MNIST, \
-    CanevetICML2016, OntheflyAgumentedImages, PennTreeBank, GeneratorDataset
+    CanevetICML2016, OntheflyAugmentedImages, PennTreeBank, GeneratorDataset
 from importance_sampling.utils.functional import compose
 
 
@@ -33,7 +33,7 @@ class TestDatasets(unittest.TestCase):
             ),
             (
                 compose(
-                    partial(OntheflyAgumentedImages, augmentation_params=dict(
+                    partial(OntheflyAugmentedImages, augmentation_params=dict(
                         featurewise_center=False,
                         samplewise_center=False,
                         featurewise_std_normalization=False,
@@ -55,7 +55,7 @@ class TestDatasets(unittest.TestCase):
             self._test_dset(*args)
 
     def test_image_augmentation(self):
-        dset = OntheflyAgumentedImages(
+        dset = OntheflyAugmentedImages(
             CIFAR10(),
             dict(
                 featurewise_center=False,
@@ -78,7 +78,7 @@ class TestDatasets(unittest.TestCase):
             self.assertTrue(np.all(x_r == x))
             self.assertTrue(np.all(y_r == y))
 
-        dset = OntheflyAgumentedImages(
+        dset = OntheflyAugmentedImages(
             CIFAR10(),
             dict(
                 featurewise_center=False,
