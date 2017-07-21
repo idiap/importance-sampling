@@ -179,7 +179,7 @@ class ExternalReweighting(Layer):
         return input_shape[0]
 
     def call(self, x):
-        return K.stop_gradient([x[1]])[0]
+        return K.stop_gradient(x[1])
 
 
 class CorrectingReweighting(Layer):
