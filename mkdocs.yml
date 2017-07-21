@@ -1,0 +1,15 @@
+site_name: Importance Sampling for Keras
+repo_url: https://github.com/idiap/importance-sampling
+theme: readthedocs
+extra_javascript: 
+    - https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML
+extra_css:
+    - css/extra.css
+markdown_extensions:
+    - mdx_math
+pages:
+    - Home: index.md
+    - Training: training.md
+    - Datasets: datasets.md
+    - Examples: examples.md
+    - Contributing: contributing.md

@@ -20,7 +20,7 @@ from keras.utils import plot_model
 
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
-    CanevetICML2016, MNIST, OntheflyAgumentedImages, PennTreeBank
+    CanevetICML2016, MNIST, OntheflyAugmentedImages, PennTreeBank
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
 from importance_sampling.model_wrappers import OracleWrapper
@@ -93,7 +93,7 @@ def load_dataset(dataset, hyperparams):
         "cifar10": CIFAR10,
         "cifar100": CIFAR100,
         "cifar10-augmented": compose(
-            partial(OntheflyAgumentedImages, ___, dict(
+            partial(OntheflyAugmentedImages, ___, dict(
                 featurewise_center=False,
                 samplewise_center=False,
                 featurewise_std_normalization=False,
@@ -108,7 +108,7 @@ def load_dataset(dataset, hyperparams):
             CIFAR10
         ),
         "cifar10-whitened-augmented": compose(
-            partial(OntheflyAgumentedImages, ___, dict(
+            partial(OntheflyAugmentedImages, ___, dict(
                 featurewise_center=False,
                 samplewise_center=False,
                 featurewise_std_normalization=False,
@@ -123,7 +123,7 @@ def load_dataset(dataset, hyperparams):
             CIFAR10
         ),
         "cifar100-augmented": compose(
-            partial(OntheflyAgumentedImages, ___, dict(
+            partial(OntheflyAugmentedImages, ___, dict(
                 featurewise_center=False,
                 samplewise_center=False,
                 featurewise_std_normalization=False,

@@ -350,7 +350,7 @@ class AugmentedImages(BaseDataset):
         return self.dataset.output_size
 
 
-class OntheflyAgumentedImages(BaseDataset):
+class OntheflyAugmentedImages(BaseDataset):
     """Use a Keras ImageDataGenerator to augment images on the fly in a
     determenistic way."""
     def __init__(self, dataset, augmentation_params, N=None, random_state=0,
