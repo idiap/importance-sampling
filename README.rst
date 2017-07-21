@@ -64,10 +64,11 @@ Normally if you already have a functional Keras installation you just need to
 Documentation
 -------------
 
-Coming soon. For now you can use the code for documentation, it is ~70%
-commented and tested.
-
-I would start with the ``importance_sampling.training`` module.
+The module has a dedicated `documentation site
+<http://idiap.ch/~katharas/importance-sampling/>`_ but you can also read the
+`source code <https://github.com/idiap/importance-sampling>`_ and the `examples
+<https://github.com/idiap/importance-sampling/tree/master/examples>`_ to get an
+idea of how the library should be used and extended.
 
 Examples
 ---------
