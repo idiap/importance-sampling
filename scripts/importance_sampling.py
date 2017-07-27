@@ -28,7 +28,7 @@ from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
-    PowerSmoothingSampler
+    PowerSmoothingSampler, OnlineBatchSelectionSampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -226,6 +226,19 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             alpha=hyperparams.get("alpha", 0.9),
             presample=hyperparams.get("presample", 2048)
         ),
+        "obs": partial(
+            OnlineBatchSelectionSampler,
+            ___,
+            reweighting,
+            model,
+            steps_per_epoch=hyperparams.get("steps_per_epoch", 300),
+            recompute=hyperparams.get("obs_recompute", 2),
+            s_e=(
+                hyperparams.get("obs_se0", 1),
+                hyperparams.get("obs_seend", 1)
+            ),
+            n_epochs=hyperparams.get("obs_epochs", 1)
+        )
     }
 
     samplers["lstm-comparison"] = lambda x: LSTMComparisonSampler(

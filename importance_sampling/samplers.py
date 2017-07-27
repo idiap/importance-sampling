@@ -416,3 +416,90 @@ class PowerSmoothingSampler(SamplerDecorator):
             scores**self.power,
             xy
         )
+
+
+class OnlineBatchSelectionSampler(ModelSampler):
+    """OnlineBatchSelection is the online batch creation method by Loschchilov
+    & Hutter.
+
+    See 'Online Batch Selection for Faster Training of Neural Networks'.
+
+    Arguments
+    ---------
+    dataset: The dataset to sample from
+    reweighting: The reweighting scheme
+    model: The model to be used for scoring
+    steps_per_epoch: int
+                     How many batches to create before considering that an
+                     epoch has passed
+    recompute: int
+               Recompute the scores after r minibatches seen
+    s_e: tuple
+         Used to compute the sampling probabilities from the ranking
+    n_epochs: int
+              The number of epochs, used to compute the sampling probabilities
+    """
+    def __init__(self, dataset, reweighting, model, large_batch=1024,
+                 forward_batch_size=128, steps_per_epoch=300, recompute=2,
+                 s_e=(1, 1), n_epochs=1):
+        super(OnlineBatchSelectionSampler, self).__init__(
+            dataset,
+            reweighting,
+            model,
+            large_batch=large_batch,
+            forward_batch_size=forward_batch_size
+        )
+
+        # The configuration of OnlineBatchSelection
+        self.steps_per_epoch = steps_per_epoch
+        self.recompute = recompute
+        self.s_e = s_e
+        self.n_epochs = n_epochs
+
+        # Mutable variables to be updated
+        self._batch = 0
+        self._epoch = 0
+        self._raw_scores = np.ones((len(dataset.train_data),))
+        self._scores = np.ones_like(self._raw_scores)
+        self._ranks = np.arange(len(dataset.train_data))
+
+    def _get_samples_with_scores(self, batch_size):
+        return (
+            np.arange(len(self._ranks)),
+            self._scores,
+            None
+        )
+
+    def update(self, idxs, results):
+        # Compute the current epoch and the current batch
+        self._batch += 1
+        self._epoch = 1 + self._batch / self.steps_per_epoch
+
+        # Add the new scores to the raw_scores
+        self._raw_scores[idxs] = results.ravel()
+
+        # if it is a new epoch
+        if self._batch % self.steps_per_epoch == 0:
+            # For the very first batch or every 'recompute' epochs compute the
+            # loss across the whole dataset
+            if self.recompute > 0 and self._epoch % self.recompute == 0:
+                # Extra internal batch size so that we do not load too much
+                # data into memory
+                scores = []
+                for i in range(0, len(self.dataset.train_data), 1024*64):
+                    x, y = self.dataset.train_data[i:i+1024*64]
+                    scores.append(self.model.score(
+                        x, y, batch_size=self.forward_batch_size
+                    ))
+                self._raw_scores[:] = np.hstack(scores)
+
+            # Sort and recompute the ranks
+            N = len(self.dataset.train_data)
+            self._ranks[self._raw_scores.argsort()] = np.arange(N)[::-1]
+
+            # Recompute the sample scores from the ranks
+            s_e0, s_eend = self.s_e
+            n_epochs = self.n_epochs
+            s = s_e0 * np.exp(np.log(s_eend/s_e0)/n_epochs) ** self._epoch
+            s = 1.0 / np.exp(np.log(s)/N)
+            self._scores = s**self._ranks
