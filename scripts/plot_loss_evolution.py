@@ -31,7 +31,8 @@ def file_or_stdin(x):
 def colors(x):
     x = np.array(x)
     x -= x.min()
-    x /= x.max()
+    if x.max() != 0:
+        x /= x.max()
     x *= 255
     x = np.round(x).astype(int)
     return [
@@ -78,6 +79,12 @@ def main(argv):
         type=lambda x: map(float, x.split(",")),
         help="Define the limits of the axes"
     )
+    parser.add_argument(
+        "--no_colorbar",
+        action="store_false",
+        dest="colorbar",
+        help="Do not display a colorbar"
+    )
 
     args = parser.parse_args(argv)
     loss = np.loadtxt(args.metrics)
@@ -91,9 +98,10 @@ def main(argv):
     ax.set_ylim(lims)
     ax.set_xlabel("$L(\cdot)$")
     ax.set_ylabel("$\hat{L}(\cdot)$")
-    mappable = ScalarMappable(cmap="viridis")
-    mappable.set_array(loss[:10000, 2])
-    plt.colorbar(mappable)
+    if args.colorbar:
+        mappable = ScalarMappable(cmap="viridis")
+        mappable.set_array(loss[:10000, 2])
+        plt.colorbar(mappable)
 
     STEP = args.step
     N_POINTS = args.n_points

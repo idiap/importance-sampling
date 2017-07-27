@@ -12,6 +12,7 @@ from bisect import bisect_left
 from contextlib import contextmanager
 from itertools import product
 from os import path
+import time
 
 from blinker import signal
 import numpy as np
@@ -31,6 +32,16 @@ from importance_sampling.samplers import ModelSampler, UniformSampler, \
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
+
+class WallClock(object):
+    """A class to write the elapsed wall clock time in a file"""
+    def __init__(self, filepath):
+        self._file = open(filepath, "w")
+        self._start = time.time()
+
+    def write(self):
+        self._file.write("%f\n" % (time.time() - self._start))
+        self._file.flush()
 
 
 def create_dict(x):
@@ -530,6 +541,7 @@ def main(argv):
     # Start training
     should_validate = every_nth(args.validate_every)
     should_snapshot = every_nth(args.snapshot_period)
+    clock = WallClock(path.join(args.output_directory, "clock.txt"))
     # Main training loop
     lr = args.hyperparams.get("lr", 1e-3)
     lr_reductions = args.hyperparams.get("lr_reductions", [10000])
@@ -547,6 +559,8 @@ def main(argv):
         losses, metrics, scores = model.train_batch(x, y, w)
         # Update the sampler
         sampler.update(idxs, scores)
+        # Write down the elapsed time
+        clock.write()
         # Compute the validation score if we have to
         if should_validate():
             evaluation_progress.save_test()
