@@ -405,6 +405,9 @@ class OntheflyAugmentedImages(BaseDataset):
         return self.cache_data[self.cache[idx]]
 
     def _train_data(self, idxs=slice(None)):
+        # Make sure we accept everything that numpy accepts as indices
+        idxs = np.arange(self.N)[idxs]
+
         # Get the original images and then transform them
         x, y = self.dataset.train_data[self.idxs[idxs]]
         x_hat = np.copy(x)
