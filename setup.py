@@ -40,7 +40,7 @@ def setup_package():
         long_description = f.read()
     meta = collect_metadata()
     setup(
-        name="importance-sampling",
+        name="keras-importance-sampling",
         version=meta["version"],
         description=meta["description"],
         long_description=long_description,
