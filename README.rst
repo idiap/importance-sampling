@@ -2,7 +2,7 @@ Importance Sampling
 ====================
 
 This python package provides a library that accelerates the training of
-arbitrary neural networks created with `Keras <http://keras.io>`_ using
+arbitrary neural networks created with `Keras <http://keras.io>`__ using
 **importance sampling**.
 
 .. code:: python
@@ -39,19 +39,19 @@ Relevant Research
 
 **Ours**
 
-* Biased Importance Sampling for Deep Neural Network Training [`preprint <https://arxiv.org/abs/1706.00043>`_]
+* Biased Importance Sampling for Deep Neural Network Training [`preprint <https://arxiv.org/abs/1706.00043>`__]
 
 **By others**
 
 * Stochastic optimization with importance sampling for regularized loss
-  minimization [`pdf <http://www.jmlr.org/proceedings/papers/v37/zhaoa15.pdf>`_]
-* Variance reduction in SGD by distributed importance sampling [`pdf <https://arxiv.org/pdf/1511.06481>`_]
+  minimization [`pdf <http://www.jmlr.org/proceedings/papers/v37/zhaoa15.pdf>`__]
+* Variance reduction in SGD by distributed importance sampling [`pdf <https://arxiv.org/pdf/1511.06481>`__]
 
 Dependencies & Installation
 ---------------------------
 
 Normally if you already have a functional Keras installation you just need to
-``pip install importance-sampling``.
+``pip install keras-importance-sampling``.
 
 * ``Keras`` > 2
 * A Keras backend among *Tensorflow*, *Theano* and *CNTK*
@@ -65,9 +65,9 @@ Documentation
 -------------
 
 The module has a dedicated `documentation site
-<http://idiap.ch/~katharas/importance-sampling/>`_ but you can also read the
-`source code <https://github.com/idiap/importance-sampling>`_ and the `examples
-<https://github.com/idiap/importance-sampling/tree/master/examples>`_ to get an
+<http://idiap.ch/~katharas/importance-sampling/>`__ but you can also read the
+`source code <https://github.com/idiap/importance-sampling>`__ and the `examples
+<https://github.com/idiap/importance-sampling/tree/master/examples>`__ to get an
 idea of how the library should be used and extended.
 
 Examples

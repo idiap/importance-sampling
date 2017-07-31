@@ -10,6 +10,7 @@ __copyright__ = "Copyright (c) 2017 Idiap Research Institute"
 __license__ = "MIT"
 __maintainer__ = "Angelos Katharopoulos"
 __email__ = "angelos.katharopoulos@idiap.ch"
-__version__ = "0.1"
+__url__ = "http://www.idiap.ch/~katharas/importance-sampling/"
+__version__ = "0.1.2"
 
 from training import ImportanceTraining, ApproximateImportanceTraining
