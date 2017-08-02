@@ -233,7 +233,6 @@ class GeneratorDataset(BaseDataset):
 
         # Determine the shapes and sizes
         x, y = next(self._train_data_gen)
-        self._batch_size = len(x)
         self._shape = x.shape[1:]
         self._output_size = y.shape[1] if len(y.shape) > 1 else 1
 
@@ -254,11 +253,19 @@ class GeneratorDataset(BaseDataset):
 
         return tuple(map(np.vstack, zip(*batches)))
 
+    def _get_at_least_n(self, generator, n):
+        cnt = 0
+        batches = []
+        while cnt < n:
+            batch = next(generator)
+            cnt += len(batch[1])
+            batches.append(batch)
+
+        return tuple(map(np.vstack, zip(*batches)))
+
     def _train_data(self, idxs=slice(None)):
         N = self._get_count(idxs)
-        n_batches = N / self._batch_size + int(N % self._batch_size != 0)
-
-        x, y = self._get_n_batches(self._train_data_gen, n_batches)
+        x, y = self._get_at_least_n(self._train_data_gen, N)
 
         return x[:N], y[:N]
 
@@ -277,9 +284,7 @@ class GeneratorDataset(BaseDataset):
 
         # Test data are provided via a generator
         N = min(self._test_data_len, self._get_count(idxs))
-        n_batches = N / self._batch_size + int(N % self._batch_size != 0)
-
-        x, y = self._get_n_batches(self._test_data_gen, n_batches)
+        x, y = self._get_at_least_n(self._test_data_gen, N)
 
         return x[:N], y[:N]
 
