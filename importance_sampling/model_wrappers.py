@@ -13,9 +13,9 @@ from keras.metrics import categorical_accuracy, binary_accuracy, \
 import numpy as np
 from transparent_keras import TransparentModel
 
-from reweighting import UNBIASED
-from score_layers import GradientNormLayer, LossLayer
-from utils.functional import compose
+from .reweighting import UNBIASED
+from .score_layers import GradientNormLayer, LossLayer
+from .utils.functional import compose
 
 
 def generic_accuracy(y_true, y_pred):

@@ -165,7 +165,7 @@ class _BaseImportanceTraining(object):
         """
         # Set steps_per_epoch properly
         if steps_per_epoch is None:
-            steps_per_epoch = len(dataset.train_data) / batch_size
+            steps_per_epoch = len(dataset.train_data) // batch_size
 
         # Create the callbacks list
         self.history = History()
@@ -234,7 +234,7 @@ class _BaseImportanceTraining(object):
         metrics = self.original_model.metrics or []
         return (
             ["loss"] +
-            map(str, metrics) +
+            list(map(str, metrics)) +
             ["score"]
         )
 

@@ -352,7 +352,7 @@ def wide_resnet(L, k, drop_rate=0.0):
             if K.int_shape(x) == shape:
                 return x
             channels = shape[3 if K.image_data_format() == "channels_last" else 1]
-            strides = K.int_shape(x)[2] / shape[2]
+            strides = K.int_shape(x)[2] // shape[2]
             return Convolution2D(
                 channels, 1, padding="same", use_bias=False, strides=strides
             )(x)

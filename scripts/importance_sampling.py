@@ -559,7 +559,7 @@ def main(argv):
     lr = args.hyperparams.get("lr", 1e-3)
     lr_reductions = args.hyperparams.get("lr_reductions", [10000])
     batch_size = args.hyperparams.get("batch_size", 128)
-    train_idxs_step = max(1, len(dataset.train_data) / len(dataset.test_data))
+    train_idxs_step = max(1, len(dataset.train_data) // len(dataset.test_data))
     train_idxs = np.arange(len(dataset.train_data))[::train_idxs_step]
     for b in range(args.train_for):
         # Set the learning rate for this mini batch

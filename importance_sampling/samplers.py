@@ -473,7 +473,7 @@ class OnlineBatchSelectionSampler(ModelSampler):
     def update(self, idxs, results):
         # Compute the current epoch and the current batch
         self._batch += 1
-        self._epoch = 1 + self._batch / self.steps_per_epoch
+        self._epoch = 1 + self._batch // self.steps_per_epoch
 
         # Add the new scores to the raw_scores
         self._raw_scores[idxs] = results.ravel()

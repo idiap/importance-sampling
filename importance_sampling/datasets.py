@@ -240,7 +240,7 @@ class GeneratorDataset(BaseDataset):
         if isinstance(idxs, slice):
             # Use 2**32 as infinity
             start, stop, step = idxs.indices(2**32)
-            return (stop - start)/step
+            return (stop - start) // step
         elif isinstance(idxs, (list, np.ndarray)):
             return len(idxs)
         elif isinstance(idxs, int):
