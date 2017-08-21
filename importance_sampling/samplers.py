@@ -418,6 +418,62 @@ class PowerSmoothingSampler(SamplerDecorator):
         )
 
 
+class HistorySampler(ModelSampler):
+    """HistorySampler uses the history of the loss to perform importance
+    sampling.
+
+    Arguments
+    ---------
+    dataset: The dataset to sample from
+    reweighting: The reweighting scheme
+    model: The model to be used for scoring
+    recompute: Compute the loss for the whole dataset every recompute batches
+    """
+    def __init__(self, dataset, reweighting, model, forward_batch_size=128,
+                 recompute=2):
+        super(HistorySampler, self).__init__(
+            dataset,
+            reweighting,
+            model,
+            forward_batch_size=forward_batch_size
+        )
+
+        # The configuration of HistorySampler
+        self.recompute = recompute
+
+        # Mutable variables holding the state of the sampler
+        self._batch = 0
+        self._scores = np.ones((len(dataset.train_data),))
+        self._unseen = np.ones(len(dataset.train_data), dtype=np.bool)
+        self._seen = np.zeros_like(self._unseen)
+
+    def _get_samples_with_scores(self, batch_size):
+        return (
+            np.arange(len(self._scores)),
+            self._scores,
+            None
+        )
+
+    def update(self, idxs,results):
+        # Update the scores of the seen samples
+        self._scores[idxs] = results.ravel()
+        self._unseen[idxs] = False
+        self._seen[idxs] = True
+        self._scores[self._unseen] = self._scores[self._seen].mean()
+
+        # Recompute all the scores if needed
+        self._batch += 1
+        if self._batch % self.recompute == 0:
+            for i in range(0, len(self.dataset.train_data), 1024*64):
+                x, y = self.dataset.train_data[i:i+1024*64]
+                self._scores[i:i+1024*64] = self.model.score(
+                    x, y,
+                    batch_size=self.forward_batch_size
+                ).ravel()
+            self._seen[:] = True
+            self._unseen[:] = False
+
+
 class OnlineBatchSelectionSampler(ModelSampler):
     """OnlineBatchSelection is the online batch creation method by Loschchilov
     & Hutter.

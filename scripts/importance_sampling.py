@@ -28,7 +28,7 @@ from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
-    PowerSmoothingSampler, OnlineBatchSelectionSampler
+    PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -238,6 +238,13 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
                 hyperparams.get("obs_seend", 1)
             ),
             n_epochs=hyperparams.get("obs_epochs", 1)
+        ),
+        "history": partial(
+            HistorySampler,
+            ___,
+            reweighting,
+            model,
+            recompute=hyperparams.get("history_recompute", 600)
         )
     }
 
@@ -252,7 +259,8 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
     samplers_for_decoration = [
         "model",
         "lstm",
-        "pcg"
+        "pcg",
+        "history"
     ]
     for sampler in samplers_for_decoration:
         samplers["smooth-"+sampler] = compose(
