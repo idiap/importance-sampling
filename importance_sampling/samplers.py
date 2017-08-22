@@ -30,6 +30,12 @@ class BaseSampler(object):
         self.dataset = dataset
         self.reweighting = reweighting
 
+    def _slice_data(self, x, y, idxs):
+        if isinstance(x, (list, tuple)):
+            return [xi[idxs] for xi in x], y[idxs]
+        else:
+            return x[idxs], y[idxs]
+
     def _get_samples_with_scores(self, batch_size):
         """Child classes should implement this method.
 
@@ -65,7 +71,7 @@ class BaseSampler(object):
             xy = self.dataset.train_data[idxs1[idxs2]]
         else:
             x, y = xy
-            xy = (x[idxs2], y[idxs2])
+            xy = self._slice_data(x, y, idxs2)
 
         scores = scores[idxs2] if scores is not None else np.ones(batch_size)
         signal("is.sample").send({

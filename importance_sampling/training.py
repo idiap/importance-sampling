@@ -45,7 +45,7 @@ class _BaseImportanceTraining(object):
 
         Arguments
         ---------
-            x: Numpy array of training data
+            x: Numpy array of training data or list of numpy arrays
             y: Numpy array of target data
             batch_size: int, number of samples per gradient update
             epochs: int, number of times to iterate over the entire

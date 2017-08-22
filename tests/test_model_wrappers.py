@@ -63,13 +63,13 @@ class TestModelWrappers(unittest.TestCase):
             Dense(10)(x1),
             Dense(10)(x2)
         ], axes=1)
-        model = Model(inputs=[x1, x2], output=y)
+        model = Model(inputs=[x1, x2], outputs=y)
         model.compile(loss="mse", optimizer="adam")
 
         wrapped = OracleWrapper(model, BiasedReweightingPolicy(), score="loss")
 
         x = [np.random.rand(16, 10), np.random.rand(16, 10)]
-        y = [np.random.rand(16, 1)]
+        y = np.random.rand(16, 1)
 
         return model, wrapped, x, y
 
