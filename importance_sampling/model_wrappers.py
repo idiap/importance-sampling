@@ -18,6 +18,12 @@ from .score_layers import GradientNormLayer, LossLayer
 from .utils.functional import compose
 
 
+def _tolist(x):
+    if not isinstance(x, (list, tuple)):
+        x = [x]
+    return x
+
+
 def generic_accuracy(y_true, y_pred):
     if K.int_shape(y_pred)[1] == 1:
         return binary_accuracy(y_true, y_pred)
@@ -65,12 +71,21 @@ class ModelWrapper(object):
     """The goal of the ModelWrapper is to take a NN and add some extra layers
     that produce a score, a loss and the sample weights to perform importance
     sampling."""
-    def evaluate(self, x, y, batch_size=128):
+    def _iterate_batches(self, x, y, batch_size):
+        if not isinstance(x, (list, tuple)):
+            x = [x]
         bs = batch_size
-        result = np.mean(np.vstack([
-            self.evaluate_batch(x[s:s+bs], y[s:s+bs])
-            for s in range(0, len(x), bs)
-        ]), axis=0)
+        for s in range(0, len(y), bs):
+            yield map(lambda xi: xi[s:s+bs], x), y[s:s+bs]
+
+    def evaluate(self, x, y, batch_size=128):
+        result = np.mean(
+            np.vstack([
+                self.evaluate_batch(xi, yi)
+                for xi, yi in self._iterate_batches(x, y, batch_size)
+            ]),
+            axis=0
+        )
 
         signal("is.evaluation").send(result)
         return result
@@ -78,8 +93,8 @@ class ModelWrapper(object):
     def score(self, x, y, batch_size=128):
         bs = batch_size
         result = np.hstack([
-            self.score_batch(x[s:s+bs], y[s:s+bs]).T
-            for s in range(0, len(x), bs)
+            self.score_batch(xi, yi).T
+            for xi, yi in self._iterate_batches(x, y, batch_size)
         ]).T
 
         signal("is.score").send(result)
@@ -189,7 +204,7 @@ class OracleWrapper(ModelWrapper):
 
         # Finally build, compile, return
         new_model = TransparentModel(
-            inputs=[model.input, y_true, pred_score],
+            inputs=_tolist(model.input) + [y_true, pred_score],
             outputs=[weighted_loss],
             observed_tensors=[loss_tensor, weighted_loss, score_tensor] + metrics
         )
@@ -201,27 +216,29 @@ class OracleWrapper(ModelWrapper):
         return new_model
 
     def evaluate_batch(self, x, y):
-        dummy_weights = np.ones((x.shape[0], self.reweighting.weight_size))
-        dummy_target = np.zeros((x.shape[0], 1))
-        outputs = self.model.test_on_batch([x, y, dummy_weights], dummy_target)
+        dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
+        dummy_target = np.zeros((y.shape[0], 1))
+        inputs = _tolist(x) + [y, dummy_weights]
+        outputs = self.model.test_on_batch(inputs, dummy_target)
 
         signal("is.evaluate_batch").send(outputs)
 
         return np.hstack([outputs[self.LOSS]] + outputs[self.METRIC0:])
 
     def score_batch(self, x, y):
-        dummy_weights = np.ones((x.shape[0], self.reweighting.weight_size))
-        dummy_target = np.zeros((x.shape[0], 1))
-        outputs = self.model.test_on_batch([x, y, dummy_weights], dummy_target)
+        dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
+        dummy_target = np.zeros((y.shape[0], 1))
+        inputs = _tolist(x) + [y, dummy_weights]
+        outputs = self.model.test_on_batch(inputs, dummy_target)
 
         return outputs[self.SCORE].ravel()
 
     def train_batch(self, x, y, w):
         # create a dummy target to please keras
-        dummy_target = np.zeros((x.shape[0], 1))
+        dummy_target = np.zeros((y.shape[0], 1))
 
         # train on a single batch
-        outputs = self.model.train_on_batch([x, y, w], dummy_target)
+        outputs = self.model.train_on_batch(_tolist(x) + [y, w], dummy_target)
 
         # Add the outputs in a tuple to send to whoever is listening
         result = (

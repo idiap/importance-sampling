@@ -7,8 +7,8 @@ from contextlib import contextmanager
 import unittest
 
 from blinker import signal
-from keras.layers import Activation, Dense
-from keras.models import Sequential
+from keras.layers import Activation, Dense, Input, dot
+from keras.models import Sequential, Model
 import numpy as np
 
 from importance_sampling.model_wrappers import OracleWrapper
@@ -56,19 +56,38 @@ class TestModelWrappers(unittest.TestCase):
 
         return model, wrapped, x, y
 
+    def _get_model2(self):
+        x1 = Input(shape=(10,))
+        x2 = Input(shape=(10,))
+        y = dot([
+            Dense(10)(x1),
+            Dense(10)(x2)
+        ], axes=1)
+        model = Model(inputs=[x1, x2], outputs=y)
+        model.compile(loss="mse", optimizer="adam")
+
+        wrapped = OracleWrapper(model, BiasedReweightingPolicy(), score="loss")
+
+        x = [np.random.rand(16, 10), np.random.rand(16, 10)]
+        y = np.random.rand(16, 1)
+
+        return model, wrapped, x, y
+
     def test_model_methods(self):
-        model, wrapped, x, y = self._get_model()
+        model_factories = [self._get_model, self._get_model2]
+        for get_model in model_factories:
+            model, wrapped, x, y = get_model()
 
-        scores = wrapped.score(x, y)
-        self.assertTrue(np.all(scores == wrapped.score(x, y)))
+            scores = wrapped.score(x, y)
+            self.assertTrue(np.all(scores == wrapped.score(x, y)))
 
-        wl, _, sc = wrapped.train_batch(x, y, np.ones(16) * 0.5)
-        self.assertTrue(np.all(wl*2 == sc))
+            wl, _, sc = wrapped.train_batch(x, y, np.ones(16) / y.shape[1])
+            self.assertTrue(np.all(wl*y.shape[1] == sc))
 
-        l = wrapped.evaluate(x, y)
-        self.assertEqual(l.size, 1)
-        l = wrapped.evaluate_batch(x, y)
-        self.assertEqual(l.size, 16)
+            l = wrapped.evaluate(x, y)
+            self.assertEqual(l.size, 1)
+            l = wrapped.evaluate_batch(x, y)
+            self.assertEqual(l.size, 16)
 
     def test_signals(self):
         model, wrapped, x, y = self._get_model()
@@ -87,7 +106,6 @@ class TestModelWrappers(unittest.TestCase):
     @unittest.skip("Not done yet")
     def test_losses(self):
         pass
-
 
 
 if __name__ == "__main__":

@@ -115,7 +115,11 @@ class BaseDataset(object):
 
     def _train_size(self):
         """Training data length"""
-        return len(self._train_data()[0])
+        x, y = self._train_data()
+        if isinstance(x, (list, tuple)):
+            return len(x[0])
+        else:
+            return len(x)
 
     def _test_data(self, idxs=slice(None)):
         """Return the testing data in the form (x, y)"""
@@ -123,7 +127,22 @@ class BaseDataset(object):
 
     def _test_size(self):
         """Test data length"""
-        return len(self._test_data()[0])
+        x, y = self._test_data()
+        if isinstance(x, (list, tuple)):
+            return len(x[0])
+        else:
+            return len(x)
+
+    def _slice_data(self, x, y, idxs):
+        if isinstance(x, (list, tuple)):
+            return [xi[idxs] for xi in x], y[idxs]
+        else:
+            return x[idxs], y[idxs]
+
+    def _extract_shape(self, x):
+        if isinstance(x, (list, tuple)):
+            return [xi.shape[1:] for xi in x]
+        return x.shape[1:]
 
     @property
     def train_data(self):
@@ -147,7 +166,7 @@ class BaseDataset(object):
 
 class InMemoryDataset(BaseDataset):
     """A dataset that fits in memory and is simply 4 numpy arrays (x, y) *
-    (train, test)"""
+    (train, test) where x can also be a list of numpy arrays"""
     def __init__(self, X_train, y_train, X_test, y_test, categorical=True):
         self._x_train = X_train
         self._x_test = X_test
@@ -171,14 +190,14 @@ class InMemoryDataset(BaseDataset):
             self._output_size = self._y_train.shape[1]
 
     def _train_data(self, idxs=slice(None)):
-        return self._x_train[idxs], self._y_train[idxs]
+        return self._slice_data(self._x_train, self._y_train, idxs)
 
     def _test_data(self, idxs=slice(None)):
-        return self._x_test[idxs], self._y_test[idxs]
+        return self._slice_data(self._x_test, self._y_test, idxs)
 
     @property
     def shape(self):
-        return self._x_train.shape[1:]
+        return self._extract_shape(self._x_train)
 
     @property
     def output_size(self):
@@ -233,7 +252,7 @@ class GeneratorDataset(BaseDataset):
 
         # Determine the shapes and sizes
         x, y = next(self._train_data_gen)
-        self._shape = x.shape[1:]
+        self._shape = self._extract_shape(x)
         self._output_size = y.shape[1] if len(y.shape) > 1 else 1
 
     def _get_count(self, idxs):
@@ -259,15 +278,22 @@ class GeneratorDataset(BaseDataset):
         while cnt < n:
             batch = next(generator)
             cnt += len(batch[1])
-            batches.append(batch)
+            if isinstance(batch[0], (list, tuple)):
+                batches.append(list(batch[0]) + [batch[1]])
+            else:
+                batches.append(batch)
 
-        return tuple(map(np.vstack, zip(*batches)))
+        xy = tuple(map(np.vstack, zip(*batches)))
+        if len(xy) > 2:
+            return list(xy[:-1]), xy[-1]
+        else:
+            return xy
 
     def _train_data(self, idxs=slice(None)):
         N = self._get_count(idxs)
         x, y = self._get_at_least_n(self._train_data_gen, N)
 
-        return x[:N], y[:N]
+        return self._slice_data(x, y, slice(N))
 
     def _train_size(self):
         raise RuntimeError("This dataset has no size")
@@ -280,13 +306,13 @@ class GeneratorDataset(BaseDataset):
         # Test data are all in memory
         if isinstance(self._test_data_gen, (tuple, list, np.ndarray)):
             x, y = self._test_data_gen
-            return x[idxs], y[idxs]
+            return self._slice_data(x, y, idxs)
 
         # Test data are provided via a generator
         N = min(self._test_data_len, self._get_count(idxs))
         x, y = self._get_at_least_n(self._test_data_gen, N)
 
-        return x[:N], y[:N]
+        return self._slice_data(x, y, slice(N))
 
     def _test_size(self):
         # No test data
