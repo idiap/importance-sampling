@@ -141,7 +141,7 @@ A *Keras* `History` instance.
 ## ImportanceTraining
 
 ```
-importance_sampling.training.ImportanceTraining(model, k=0.5, smooth=0.0, adaptive_smoothing=False, presample=1024, forward_batch_size=128)
+importance_sampling.training.ImportanceTraining(model, k=0.5, smooth=0.0, adaptive_smoothing=False, presample=256, forward_batch_size=128)
 ```
 
 `ImportanceTraining` uses the passed model to compute the importance of the

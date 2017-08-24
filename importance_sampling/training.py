@@ -257,7 +257,7 @@ class ImportanceTraining(_BaseImportanceTraining):
                             during scoring
     """
     def __init__(self, model, k=0.5, smooth=0.0, adaptive_smoothing=False,
-                 presample=1024, forward_batch_size=128):
+                 presample=256, forward_batch_size=128):
         # Create the reweighting policy
         self._reweighting = BiasedReweightingPolicy(k)
 
