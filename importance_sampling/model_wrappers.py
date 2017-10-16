@@ -72,11 +72,9 @@ class ModelWrapper(object):
     that produce a score, a loss and the sample weights to perform importance
     sampling."""
     def _iterate_batches(self, x, y, batch_size):
-        if not isinstance(x, (list, tuple)):
-            x = [x]
         bs = batch_size
         for s in range(0, len(y), bs):
-            yield map(lambda xi: xi[s:s+bs], x), y[s:s+bs]
+            yield [xi[s:s+bs] for xi in _tolist(x)], y[s:s+bs]
 
     def evaluate(self, x, y, batch_size=128):
         result = np.mean(
