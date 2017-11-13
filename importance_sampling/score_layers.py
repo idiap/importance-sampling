@@ -8,6 +8,35 @@ from keras import objectives
 from keras.layers import Layer
 
 
+def _per_sample_loss(loss_function, mask, x):
+    """Compute the per sample loss supporting masking and returning always
+    tensor of shape (batch_size, 1)
+
+    Arguments
+    ---------
+        loss_function: callable
+        mask: boolean tensor or None
+        x: list/tuple of inputs to the loss
+    """
+    # Compute the loss
+    loss = loss_function(*x)
+
+    # Apply masking if needed
+    if mask is not None:
+        if not isinstance(mask, list):
+            mask = [mask]
+        mask = [K.cast(m, K.floatx()) for m in mask if m is not None]
+        mask = reduce(lambda a, b: a*b, mask)
+        loss *= mask
+        loss /= K.mean(mask)
+
+    # If the loss has more than 1 dimensions then aggregate the last dimension
+    while len(K.int_shape(loss)) > 1:
+        loss = K.mean(loss, axis=-1)
+
+    return K.expand_dims(loss)
+
+
 class LossLayer(Layer):
     """LossLayer outputs the loss per sample
     
@@ -16,9 +45,13 @@ class LossLayer(Layer):
               target
     """
     def __init__(self, loss, **kwargs):
+        self.supports_masking = True
         self.loss = objectives.get(loss)
 
         super(LossLayer, self).__init__(**kwargs)
+
+    def compute_mask(self, inputs, input_mask):
+        return None
 
     def build(self, input_shape):
         pass # Nothing to do
@@ -33,10 +66,7 @@ class LossLayer(Layer):
         return (input_shape[0][0], 1)
 
     def call(self, x, mask=None):
-        # We need two inputs X and y
-        assert len(x) == 2
-
-        return K.expand_dims(self.loss(*x))
+        return _per_sample_loss(self.loss, mask, x)
 
 
 class GradientNormLayer(Layer):
@@ -54,11 +84,15 @@ class GradientNormLayer(Layer):
               use the batch mode to compute the gradient
     """
     def __init__(self, parameter_list, loss, fast=False, **kwargs):
+        self.supports_masking = True
         self.parameter_list = parameter_list
         self.loss = objectives.get(loss)
         self.fast = fast
 
         super(GradientNormLayer, self).__init__(**kwargs)
+
+    def compute_mask(self, inputs, input_mask):
+        return None
 
     def build(self, input_shape):
         pass # Nothing to do
@@ -75,7 +109,7 @@ class GradientNormLayer(Layer):
         # x should be an output and a target
         assert len(x) == 2
 
-        losses = self.loss(*x)
+        losses = _per_sample_loss(self.loss, mask, x)
         if self.fast:
             grads = K.sqrt(sum([
                 K.sum(K.square(g), axis=1)

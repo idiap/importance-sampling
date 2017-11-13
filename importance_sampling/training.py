@@ -163,6 +163,10 @@ class _BaseImportanceTraining(object):
                      callback or not
             callbacks: list of Keras callbacks to be called during training
         """
+        if len(dataset.train_data) < batch_size:
+            raise ValueError(("The model cannot be trained with "
+                              "batch_size > training set"))
+
         # Set steps_per_epoch properly
         if steps_per_epoch is None:
             steps_per_epoch = len(dataset.train_data) // batch_size
