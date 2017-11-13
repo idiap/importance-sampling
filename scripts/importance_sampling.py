@@ -11,17 +11,20 @@ import argparse
 from bisect import bisect_left
 from contextlib import contextmanager
 from itertools import product
+import os
 from os import path
 import time
 
 from blinker import signal
 import numpy as np
 from keras import backend as K
+from keras.optimizers import Adam, SGD
 from keras.utils import plot_model
 
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
-    CanevetICML2016, MNIST, OntheflyAugmentedImages, PennTreeBank
+    CanevetICML2016, MNIST, OntheflyAugmentedImages, PennTreeBank, \
+    ImageNetDownsampled
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
 from importance_sampling.model_wrappers import OracleWrapper
@@ -148,7 +151,17 @@ def load_dataset(dataset, hyperparams):
             )),
             CIFAR100
         ),
-        "ptb": partial(PennTreeBank, 20)
+        "ptb": partial(PennTreeBank, 20),
+        "imagenet-32x32": partial(
+            ImageNetDownsampled,
+            hyperparams.get("imagenet", os.getenv("IMAGENET")),
+            size=32
+        ),
+        "imagenet-64x64": partial(
+            ImageNetDownsampled,
+            hyperparams.get("imagenet", os.getenv("IMAGENET")),
+            size=64
+        )
     }
 
     return datasets[dataset]()
@@ -195,9 +208,26 @@ def get_models_dictionary(hyperparams={}, reweighting=None):
 
 
 def build_model(model, wrapper, dataset, hyperparams, reweighting):
-    return get_models_dictionary(hyperparams, reweighting)[wrapper](
-        models.get(model)(dataset.shape, dataset.output_size)
+    def build_optimizer(opt, hyperparams):
+        return {
+            "sgd": SGD(
+                lr=hyperparams.get("lr", 0.001),
+                momentum=hyperparams.get("momentum", 0.0)
+            ),
+            "adam": Adam(lr=hyperparams.get("lr", 0.001))
+        }[opt]
+
+    model = models.get(model)(dataset.shape, dataset.output_size)
+    model.compile(
+        optimizer=build_optimizer(
+            hyperparams.get("opt", "adam"),
+            hyperparams
+        ),
+        loss=model.loss,
+        metrics=model.metrics
     )
+
+    return get_models_dictionary(hyperparams, reweighting)[wrapper](model)
 
 
 def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
@@ -431,7 +461,8 @@ def main(argv):
             "canevet-icml2016-jittered", "canevet-icml2016",
             "canevet-icml2016-smooth", "cifar-sanity-check", "mnist",
             "cifar10", "cifar100", "cifar10-augmented", "cifar100-augmented",
-            "ptb", "cifar10-whitened-augmented"
+            "ptb", "cifar10-whitened-augmented", "imagenet-32x32",
+            "imagenet-64x64"
         ],
         help="Choose the dataset to train on"
     )
@@ -566,13 +597,14 @@ def main(argv):
     # Main training loop
     lr = args.hyperparams.get("lr", 1e-3)
     lr_reductions = args.hyperparams.get("lr_reductions", [10000])
+    lr_factor = args.hyperparams.get("lr_factor", 10.)
     batch_size = args.hyperparams.get("batch_size", 128)
     train_idxs_step = max(1, len(dataset.train_data) // len(dataset.test_data))
     train_idxs = np.arange(len(dataset.train_data))[::train_idxs_step]
     for b in range(args.train_for):
         # Set the learning rate for this mini batch
         model.set_lr(
-            lr * 10**(-bisect_left(lr_reductions, b))
+            lr * lr_factor**(-bisect_left(lr_reductions, b))
         )
         # Sample some points with their respective weights
         idxs, (x, y), w = sampler.sample(batch_size)

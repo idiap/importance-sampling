@@ -563,3 +563,77 @@ class PennTreeBank(BaseDataset):
     @property
     def output_size(self):
         return len(self.V)
+
+
+class ImageNetDownsampled(BaseDataset):
+    """Dataset interface to the downsampled ImageNet [1].
+
+    The data are expected in the following format:
+        _ base-path/
+         \_ imagenet-16x16
+         |_ imagenet-32x32
+         |_ imagenet-64x64
+          \_ mean.npy
+          |_ train_data.npy
+          |_ train_labels.npy
+          |_ val_data.npy
+          |_ val_labels.npy
+
+    1: A Downsampled Variant of ImageNet as an Alternative to the CIFAR
+       datasets (https://arxiv.org/abs/1707.08819v2)
+    """
+    def __init__(self, basepath, size=32, mmap=False):
+        basepath = path.join(basepath, "imagenet-%dx%d" % (size, size))
+        self.mean = np.load(path.join(basepath, "mean.npy"))
+        self._y_train = np.load(path.join(basepath, "train_labels.npy"))
+        self._y_val = np.load(path.join(basepath, "val_labels.npy"))
+        self._x_train = np.load(
+            path.join(basepath, "train_data.npy"),
+            mmap_mode="r" if mmap else None
+        )
+        self._x_val = np.load(
+            path.join(basepath, "val_data.npy"),
+            mmap_mode="r" if mmap else None
+        )
+
+    def _get_batch(self, X, Y, idxs):
+        """Preprocess the batch by subtracting the mean and normalizing."""
+        if isinstance(idxs, slice):
+            idxs = np.arange(2*len(X))[idxs]
+
+        N = len(idxs)
+        x = np.zeros((N,) + self.shape, dtype=np.float32)
+        y = np.zeros((N, 1000), dtype=np.float32)
+
+        # Fill in the class information
+        y[np.arange(N), Y[idxs % len(X)]-1] = 1.
+
+        # Fill in the images
+        d = self.shape[0]
+        x[:] = X[idxs % len(X)]
+        flip = (idxs / len(X)) == 1  # if idx > len(X) flip horizontally
+        x[flip] = x[flip, :, ::-1]
+        x -= self.mean
+        x /= 255
+
+        return x, y
+
+    def _train_data(self, idxs=slice(None)):
+        return self._get_batch(self._x_train, self._y_train, idxs)
+
+    def _test_data(self, idxs=slice(None)):
+        return self._get_batch(self._x_val, self._y_val, idxs)
+
+    def _train_size(self):
+        return 2*len(self._x_train)
+
+    def _test_size(self):
+        return len(self._x_val)
+
+    @property
+    def shape(self):
+        return self._x_train.shape[1:]
+
+    @property
+    def output_size(self):
+        return 1000
