@@ -424,6 +424,37 @@ class PowerSmoothingSampler(SamplerDecorator):
         )
 
 
+class WarmupSampler(SamplerDecorator):
+    """Warmup using uniform sampling.
+
+    Arguments
+    ---------
+        sampler: BaseSampler
+                 The sampler to be decorated
+        warmup: int
+                How many batches to extract using uniform sampling.
+    """
+    def __init__(self, sampler, warmup=100):
+        self.seen = 0
+        self.warmup = warmup
+        self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
+        super(WarmupSampler, self).__init__(sampler)
+
+    def _get_samples_with_scores(self, batch_size):
+        sampler = self.uniform if self.seen < self.warmup else self.sampler
+        self.seen += 1
+
+        idxs, scores, xy = sampler._get_samples_with_scores(batch_size)
+        if scores is None:
+            scores = np.ones(len(idxs))
+
+        return (
+            idxs,
+            scores,
+            xy
+        )
+
+
 class HistorySampler(ModelSampler):
     """HistorySampler uses the history of the loss to perform importance
     sampling.

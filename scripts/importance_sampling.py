@@ -31,7 +31,8 @@ from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
-    PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler
+    PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler, \
+    WarmupSampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -314,6 +315,16 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             ),
             samplers[sampler]
         )
+
+    for sampler in samplers.keys():
+        if "model" in sampler:
+            samplers["warmup-"+sampler] = compose(
+                partial(
+                    WarmupSampler,
+                    warmup=hyperparams.get("warmup", 100)
+                ),
+                samplers[sampler]
+            )
 
     return samplers
 
