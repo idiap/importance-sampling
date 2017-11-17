@@ -533,6 +533,10 @@ def main(argv):
         default=3000,
         help="The snapshot period in minibatches"
     )
+    parser.add_argument(
+        "--initial_weights",
+        help="Initialize the model to those weights"
+    )
 
     args = parser.parse_args(argv)
 
@@ -600,6 +604,10 @@ def main(argv):
         signal("is.training").connect(prediction_logger.on_training)
     if args.save_scores:
         signal("is.evaluate_batch").connect(evaluation_progress.on_batch)
+
+    # Initialize the weights if needed
+    if args.initial_weights:
+        model.model.load_weights(args.initial_weights)
 
     # Start training
     should_validate = every_nth(args.validate_every)
