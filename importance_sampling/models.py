@@ -409,6 +409,7 @@ def get(name):
         "lstm_lm3": build_lstm_lm3,
         "wide_resnet_16_4": wide_resnet(16, 4),
         "wide_resnet_16_4_dropout": wide_resnet(16, 4, 0.3),
+        "wide_resnet_28_2": wide_resnet(28, 2),
         "wide_resnet_28_10": wide_resnet(28, 10),
         "wide_resnet_28_10_dropout": wide_resnet(28, 10, 0.3)
     }
