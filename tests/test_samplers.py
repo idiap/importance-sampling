@@ -49,7 +49,7 @@ class TestSamplers(unittest.TestCase):
         p = self.prior
         return (p * a) / ((1-p)*b + p*a)
 
-    def _test_sampler(self, sampler, N, expected_ones, error=0.01):
+    def _test_sampler(self, sampler, N, expected_ones, error=0.02):
         idxs, xy, w = sampler.sample(100)
 
         self.assertEqual(len(idxs), 100)

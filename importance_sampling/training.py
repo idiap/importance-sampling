@@ -168,7 +168,7 @@ class _BaseImportanceTraining(object):
                 raise ValueError(("The model cannot be trained with "
                                   "batch_size > training set"))
         except RuntimeError as e:
-            assert "no size" in e.message
+            assert "no size" in str(e)
 
         # Set steps_per_epoch properly
         if steps_per_epoch is None:

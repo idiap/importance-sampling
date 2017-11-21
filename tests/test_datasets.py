@@ -4,6 +4,7 @@
 #
 
 from functools import partial
+import os
 import unittest
 
 import numpy as np
@@ -45,14 +46,22 @@ class TestDatasets(unittest.TestCase):
                         horizontal_flip=True,
                         vertical_flip=False
                     )), CIFAR10), 500000, 10000, (32, 32, 3), 10
-            ),
-            (
-                partial(PennTreeBank, 20), 887521, 70390, (20,), 10000
             )
         ]
 
         for args in datasets:
             self._test_dset(*args)
+
+    @unittest.skipUnless(os.getenv("ALL_TESTS", False),
+                         "PTB is not to be run all the time")
+    def test_ptb(self):
+        self._test_dset(
+            partial(PennTreeBank, 20),
+            887521,
+            70390,
+            (20,),
+            10000
+        )
 
     def test_image_augmentation(self):
         dset = OntheflyAugmentedImages(

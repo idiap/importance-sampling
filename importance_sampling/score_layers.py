@@ -3,6 +3,8 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
+from functools import reduce
+
 from keras import backend as K
 from keras import objectives
 from keras.layers import Layer
