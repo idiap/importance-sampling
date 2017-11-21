@@ -10,7 +10,8 @@ import unittest
 import numpy as np
 
 from importance_sampling.datasets import CIFAR10, CIFARSanityCheck, MNIST, \
-    CanevetICML2016, OntheflyAugmentedImages, PennTreeBank, GeneratorDataset
+    CanevetICML2016, OntheflyAugmentedImages, PennTreeBank, GeneratorDataset, \
+    InMemoryImageDataset
 from importance_sampling.utils.functional import compose
 
 
@@ -23,6 +24,8 @@ class TestDatasets(unittest.TestCase):
         self.assertEqual(dset.train_data[[0]][0][0].shape, shape)
         self.assertEqual(dset.output_size, output_size)
 
+    @unittest.skipUnless(os.getenv("TEST_DATASETS", False),
+                         "Datasets need not be tested all the time")
     def test_datasets(self):
         datasets = [
             (CIFAR10, 50000, 10000, (32, 32, 3), 10),
@@ -46,26 +49,23 @@ class TestDatasets(unittest.TestCase):
                         horizontal_flip=True,
                         vertical_flip=False
                     )), CIFAR10), 500000, 10000, (32, 32, 3), 10
-            )
+            ),
+            (partial(PennTreeBank, 20), 887521, 70390, (20,), 10000)
         ]
 
         for args in datasets:
             self._test_dset(*args)
 
-    @unittest.skipUnless(os.getenv("ALL_TESTS", False),
-                         "PTB is not to be run all the time")
-    def test_ptb(self):
-        self._test_dset(
-            partial(PennTreeBank, 20),
-            887521,
-            70390,
-            (20,),
-            10000
+    def test_image_augmentation(self):
+        dset = InMemoryImageDataset(
+            np.random.rand(1000, 32, 32, 3),
+            (np.random.rand(1000, 1)*10).astype(np.int32),
+            np.random.rand(1000, 32, 32, 3),
+            (np.random.rand(1000, 1)*10).astype(np.int32)
         )
 
-    def test_image_augmentation(self):
         dset = OntheflyAugmentedImages(
-            CIFAR10(),
+            dset,
             dict(
                 featurewise_center=False,
                 samplewise_center=False,
@@ -88,7 +88,7 @@ class TestDatasets(unittest.TestCase):
             self.assertTrue(np.all(y_r == y))
 
         dset = OntheflyAugmentedImages(
-            CIFAR10(),
+            dset,
             dict(
                 featurewise_center=False,
                 samplewise_center=False,
