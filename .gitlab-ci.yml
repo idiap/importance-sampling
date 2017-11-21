@@ -22,4 +22,3 @@ test:
         - pip install -e .
         - python -m unittest discover -s tests/
         - deactivate
-    retry: 2
