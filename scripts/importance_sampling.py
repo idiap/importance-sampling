@@ -8,7 +8,7 @@
 importance sampling methods"""
 
 import argparse
-from bisect import bisect_left
+from bisect import bisect_right
 from contextlib import contextmanager
 from itertools import product
 import os
@@ -616,14 +616,20 @@ def main(argv):
     clock = WallClock(path.join(args.output_directory, "clock.txt"))
     # Main training loop
     lr = args.hyperparams.get("lr", 1e-3)
-    lr_changes = [0] + args.hyperparams.get("lr_changes", [])
+    lr_changes = args.hyperparams.get("lr_changes", [])
     lr_targets = [lr] + args.hyperparams.get("lr_targets", [])
+    current_lr = None
     batch_size = args.hyperparams.get("batch_size", 128)
     train_idxs_step = max(1, len(dataset.train_data) // len(dataset.test_data))
     train_idxs = np.arange(len(dataset.train_data))[::train_idxs_step]
     for b in range(args.train_for):
         # Set the learning rate for this mini batch
-        model.set_lr(lr_targets[bisect_left(lr_changes, b)])
+        new_lr = lr_targets[bisect_right(lr_changes, b)]
+        if new_lr != current_lr:
+            model.set_lr(new_lr)
+            current_lr = new_lr
+            sys.stderr.write("Setting lr: %f\n" % (new_lr,))
+            sys.stderr.flush()
         # Sample some points with their respective weights
         idxs, (x, y), w = sampler.sample(batch_size)
         # Train on the sampled points
