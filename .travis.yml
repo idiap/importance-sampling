@@ -6,6 +6,7 @@ python:
 install:
     - pip install --upgrade pip
     - pip install tensorflow
+    - pip install h5py
     - pip install -e .
 
 script:
