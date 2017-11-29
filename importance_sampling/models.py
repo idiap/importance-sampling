@@ -20,7 +20,7 @@ from keras.layers import    \
 from keras.models import Model, Sequential
 from keras.optimizers import SGD
 
-from .layers import BatchRenormalization
+from .layers import BatchRenormalization, LayerNormalization
 
 
 def build_small_nn(input_shape, output_size):
@@ -339,11 +339,11 @@ def wide_resnet(L, k, drop_rate=0.0):
         def conv(channels, strides,
                  params=dict(padding="same", use_bias=False)):
             def inner(x):
-                x = BatchRenormalization()(x)
+                x = LayerNormalization()(x)
                 x = Activation("relu")(x)
                 x = Convolution2D(channels, 3, strides=strides, **params)(x)
                 x = Dropout(drop_rate)(x) if drop_rate > 0 else x
-                x = BatchRenormalization()(x)
+                x = LayerNormalization()(x)
                 x = Activation("relu")(x)
                 x = Convolution2D(channels, 3, **params)(x)
                 return x
@@ -380,7 +380,7 @@ def wide_resnet(L, k, drop_rate=0.0):
         x = group2(x)
         x = group3(x)
 
-        x = BatchRenormalization()(x)
+        x = LayerNormalization()(x)
         x = Activation("relu")(x)
         x = GlobalAveragePooling2D()(x)
         x = Dense(output_size)(x)

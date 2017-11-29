@@ -148,4 +148,62 @@ class BatchRenormalization(Layer):
             )
         ])
 
+        # Fix the output's uses learning phase
+        y._uses_learning_phase = rmax._uses_learning_phase
+
         return y
+
+
+class LayerNormalization(Layer):
+    """LayerNormalization is a determenistic normalization layer to replace
+    BN's stochasticity.
+
+    # Arguments
+        axes: list of axes that won't be aggregated over
+    """
+    def __init__(self, axes=None, epsilon=1e-3, **kwargs):
+        super(LayerNormalization, self).__init__(**kwargs)
+        self.axes = axes
+        self.epsilon = epsilon
+
+    def build(self, input_shape):
+        # Get the number of dimensions and the axes that won't be aggregated
+        # over
+        ndims = len(input_shape)
+        axes = self.axes or []
+
+        # Figure out the shape of the statistics
+        shape = [1]*ndims
+        for ax in axes:
+            shape[ax] = input_shape[ax]
+
+        # Figure out the axes we will aggregate over accounting for negative
+        # axes
+        self.reduction_axes = [
+            ax for ax in range(ndims)
+            if ax > 0 and (ax+ndims)%ndims not in axes
+        ]
+
+        # Create trainable variables
+        self.gamma = self.add_weight(
+            shape=shape,
+            name="gamma",
+            initializer=initializers.get("ones")
+        )
+        self.beta = self.add_weight(
+            shape=shape,
+            name="beta",
+            initializer=initializers.get("zeros")
+        )
+
+        self.built = True
+
+    def call(self, inputs):
+        x = inputs
+        assert not isinstance(x, list)
+
+        # Compute the per sample statistics
+        mean = K.mean(x, self.reduction_axes, keepdims=True)
+        std = K.std(x, self.reduction_axes, keepdims=True) + self.epsilon
+
+        return self.gamma*(x-mean)/std + self.beta
