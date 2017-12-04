@@ -41,10 +41,10 @@ def MetricLayer(metric_func):
 
 
 def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
-                       layer=None):
+                       layer=None, model=None):
     """Get a scoring layer that computes the score for each pair of y_true,
     y_pred"""
-    assert score in ["loss", "gnorm", "acc"]
+    assert score in ["loss", "gnorm", "full_gnorm", "acc"]
 
     if score == "loss":
         return LossLayer(loss)([
@@ -56,6 +56,15 @@ def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
             layer.output,
             loss,
             fast=True
+        )([
+            y_true,
+            y_pred
+        ])
+    elif score == "full_gnorm":
+        return GradientNormLayer(
+            model.trainable_weights,
+            loss,
+            fast=False
         )([
             y_true,
             y_pred
@@ -184,7 +193,8 @@ class OracleWrapper(ModelWrapper):
             y_true,
             model.output,
             loss,
-            model.layers[last_layer]
+            model.layers[last_layer],
+            model
         )
 
         # Create the sample weights
