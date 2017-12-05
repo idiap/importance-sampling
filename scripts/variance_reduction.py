@@ -1,7 +1,12 @@
 #!/usr/bin/env python
+#
+# Copyright (c) 2017 Idiap Research Institute, http://www.idiap.ch/
+# Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
+#
 
 import argparse
 import os
+from os import path
 
 from keras import backend as K
 from keras.losses import get as get_loss
@@ -141,6 +146,10 @@ def main(argv):
         default=0,
         help="A seed for the PRNG (mainly used for dataset generation)"
     )
+    parser.add_argument(
+        "--save_scores",
+        help="Directory to save the scores in"
+    )
 
     args = parser.parse_args(argv)
 
@@ -182,6 +191,11 @@ def main(argv):
         print "Variance of norms of diff", np.var(norms)
         print "Mean of alignment", np.mean(alignment)
         print "Variance of alignment", np.var(alignment)
+        if args.save_scores:
+            np.savetxt(
+                path.join(args.save_scores, score_metric+".txt"),
+                scores
+            )
 
 
 if __name__ == "__main__":
