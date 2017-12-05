@@ -18,6 +18,7 @@ from importance_sampling.datasets import CIFAR10, CIFAR100, MNIST, \
     OntheflyAugmentedImages, ImageNetDownsampled
 from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.reweighting import BiasedReweightingPolicy
+from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
 
