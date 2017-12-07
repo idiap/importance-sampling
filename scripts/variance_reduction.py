@@ -42,6 +42,25 @@ def build_grad(network):
     )
 
 
+def build_grad_batched(network, batch_size):
+    """Compute the average gradient by splitting the inputs in batches of size
+    'batch_size' and averaging."""
+    grad = build_grad(network)
+    def inner(inputs):
+        X, y, w = inputs
+        N = len(X)
+        g = 0
+        for i in range(0, N, batch_size):
+            g = g + w[i:i+batch_size].sum() * grad([
+                X[i:i+batch_size],
+                y[i:i+batch_size],
+                w[i:i+batch_size]
+            ])[0]
+        return [g / w.sum()]
+
+    return inner
+
+
 def load_dataset(dataset):
     datasets = {
         "mnist": MNIST,
@@ -136,6 +155,13 @@ def main(argv):
         help="The batch size for computing the loss"
     )
     parser.add_argument(
+        "--inner_batch_size",
+        type=int,
+        default=32,
+        help=("The batch size to use for gradient computations "
+              "(to decrease memory usage)")
+    )
+    parser.add_argument(
         "--sample_size",
         type=int,
         default=1024,
@@ -159,7 +185,7 @@ def main(argv):
     dataset = load_dataset(args.dataset)
     network = models.get(args.model)(dataset.shape, dataset.output_size)
     network.load_weights(args.weights)
-    grad = build_grad(network)
+    grad = build_grad_batched(network, args.inner_batch_size)
     reweighting = BiasedReweightingPolicy()
 
     # Compute the full gradient
@@ -176,7 +202,7 @@ def main(argv):
             score = uniform_score
         gs = np.zeros(shape=(10,) + full_grad.shape, dtype=np.float32)
         print "Calculating %s..." % (score_metric,)
-        scores = score(x, y, batch_size=args.batch_size)
+        scores = score(x, y, batch_size=1)
         p = scores/scores.sum()
         pb = Progbar(args.samples)
         for i in range(args.samples):
