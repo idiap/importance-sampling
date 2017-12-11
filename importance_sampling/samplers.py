@@ -151,8 +151,6 @@ class LSTMSampler(BaseSampler):
             Depending on whether we are using adaptive smoothing or additive we
             either add smooth*mean or simply smooth to each importance before
             sampling
-    warmup: int
-            Sample unformly at first that many times to gather some history
     log: bool
          Do the regression in log space
     adaptive_smooth: bool
@@ -160,10 +158,9 @@ class LSTMSampler(BaseSampler):
     forget: float
             A float less than one to used to calculate the mean of the scores
     """
-    def __init__(self, dataset, reweighting, presample=2048, history=10, warmup=100,
-                 log=False):
+    def __init__(self, dataset, reweighting, presample=2048, history=10, log=False):
         # Initialize the history for every sample
-        init = -np.log(1.0 / dataset.output_size)
+        init = 1.0
         if log:
             init = np.log(init)
         self.history = np.zeros((len(dataset.train_data), history, 1))
@@ -173,8 +170,6 @@ class LSTMSampler(BaseSampler):
         # Keep some member variables
         self.presample = presample
         self.log = log
-        self.warmup = warmup
-        self.batches_sampled = 0
 
         # Create our LSTM model
         x00 = Input(shape=(history, 1))
@@ -200,17 +195,6 @@ class LSTMSampler(BaseSampler):
 
     def _get_samples_with_scores(self, batch_size):
         """Use the LSTM to predict the loss of each sample"""
-        # Increment our batch counter
-        self.batches_sampled += 1
-
-        # if we are still warming up just sample randomly
-        if self.batches_sampled <= self.warmup:
-            return (
-                np.random.choice(len(self.dataset.train_data), self.presample),
-                np.ones(self.presample),
-                None
-            )
-
         # Presample so that we do not run the LSTM for the whole dataset
         idxs = np.random.choice(len(self.history), self.presample)
         x, y = self.dataset.train_data[idxs]
@@ -337,6 +321,11 @@ class SamplerDecorator(BaseSampler):
 
     def update(self, idxs, results):
         self.sampler.update(idxs, results)
+
+    @property
+    def model(self):
+        """Expose the model attribute of the decorated sampler if one exists."""
+        return self.sampler.model
 
 
 class AdditiveSmoothingSampler(SamplerDecorator):

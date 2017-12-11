@@ -37,6 +37,15 @@ from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
 
+@contextmanager
+def ignored(exception_class):
+    """Ignore exceptions of the passed as argument type."""
+    try:
+        yield
+    except exception_class:
+        pass
+
+
 class WallClock(object):
     """A class to write the elapsed wall clock time in a file"""
     def __init__(self, filepath):
@@ -247,7 +256,6 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             ___,
             reweighting,
             log=hyperparams.get("lstm_log", 0) != 0,
-            warmup=hyperparams.get("lstm_warmup", 100),
             presample=hyperparams.get("presample", 2048)
         ),
         "pcg": partial(
@@ -317,7 +325,7 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
         )
 
     for sampler in samplers.keys():
-        if "model" in sampler:
+        if "model" in sampler or "lstm" in sampler:
             samplers["warmup-"+sampler] = compose(
                 partial(
                     WarmupSampler,
@@ -650,10 +658,26 @@ def main(argv):
             model.model.save_weights(
                 path.join(args.output_directory, "model.%06d.h5" % (b,))
             )
+            with ignored(AttributeError):
+                model.small_model.save_weights(
+                    path.join(args.output_directory, "small_model.%06d.h5" % (b,))
+                )
+            with ignored(AttributeError):
+                sampler.model.save_weights(
+                    path.join(args.output_directory, "sampler_model.%06d.h5" % (b,))
+                )
     if args.save_model:
         model.model.save_weights(
             path.join(args.output_directory, "model.h5")
         )
+        with ignored(AttributeError):
+            model.small_model.save_weights(
+                path.join(args.output_directory, "small_model.h5" % (b,))
+            )
+        with ignored(AttributeError):
+            sampler.model.save_weights(
+                path.join(args.output_directory, "sampler_model.h5" % (b,))
+            )
 
 
 if __name__ == "__main__":
