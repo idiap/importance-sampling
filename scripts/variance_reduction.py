@@ -212,8 +212,8 @@ def main(argv):
             gs[i] = grad([x[idxs], y[idxs], w])[0]
         pb.update(args.samples)
         norms = np.sqrt(((full_grad - gs)**2).sum(axis=1))
-        alignment = gs.dot(full_grad[:, np.newaxis]) / np.sum(full_grad**2)
-        alignment /= (gs**2).sum(axis=1, keepdims=True)
+        alignment = gs.dot(full_grad[:, np.newaxis]) / np.sqrt(np.sum(full_grad**2))
+        alignment /= np.sqrt((gs**2).sum(axis=1, keepdims=True))
         print "Mean of norms of diff", np.mean(norms)
         print "Variance of norms of diff", np.var(norms)
         print "Mean of alignment", np.mean(alignment)
