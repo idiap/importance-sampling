@@ -209,7 +209,7 @@ class LSTMSampler(BaseSampler):
         if self.log:
             np.exp(scores, scores)
         else:
-            np.maximum(scores, 0, scores)
+            np.maximum(scores, 1e-6, scores)
 
         return (
             idxs,
