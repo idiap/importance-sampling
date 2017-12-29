@@ -255,9 +255,7 @@ def build_lstm_lm(input_shape, output_size):
         Embedding(vocab_size + 1, 64, mask_zero=True,
                   input_length=input_shape[0]),
         LSTM(256, unroll=True, return_sequences=True),
-        Dropout(0.5),
         LSTM(256, unroll=True),
-        Dropout(0.5),
         Dense(output_size),
         Activation("softmax")
     ])
