@@ -6,7 +6,6 @@
 from keras import backend as K
 from keras.layers import    \
     Activation,             \
-    BatchNormalization,     \
     Convolution2D,          \
     Dense,                  \
     Dropout,                \
@@ -20,6 +19,8 @@ from keras.layers import    \
     add
 from keras.models import Model, Sequential
 from keras.optimizers import SGD
+
+from .layers import BatchRenormalization, LayerNormalization
 
 
 def build_small_nn(input_shape, output_size):
@@ -48,25 +49,25 @@ def build_cnn(input_shape, output_size):
     model = Sequential([
         # conv1_*
         Convolution2D(64, input_shape=input_shape, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(64, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         MaxPooling2D(pool_size=(2, 2)),
         Dropout(0.25),
 
         # conv2_*
         Convolution2D(128, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(128, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         MaxPooling2D(pool_size=(2, 2)),
         Dropout(0.25),
 
         # conv3_*
         Convolution2D(256, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(256, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         MaxPooling2D(pool_size=(2, 2)),
         Dropout(0.25),
 
@@ -160,25 +161,25 @@ def build_all_conv_nn(input_shape, output_size):
     model = Sequential([
         # conv1
         Convolution2D(96, 3, 3, input_shape=input_shape, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(96, 3, 3, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(96, 3, 3, subsample=(2, 2), **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Dropout(0.25),
 
         # conv2
         Convolution2D(192, 3, 3, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(192, 3, 3, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Convolution2D(192, 3, 3, subsample=(2, 2), **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Dropout(0.25),
 
         # conv3
         Convolution2D(192, 1, 1, **kwargs),
-        BatchNormalization(),
+        BatchRenormalization(),
         Dropout(0.25),
         Convolution2D(output_size, 1, 1, **kwargs),
         GlobalAveragePooling2D(),
@@ -254,9 +255,7 @@ def build_lstm_lm(input_shape, output_size):
         Embedding(vocab_size + 1, 64, mask_zero=True,
                   input_length=input_shape[0]),
         LSTM(256, unroll=True, return_sequences=True),
-        Dropout(0.5),
         LSTM(256, unroll=True),
-        Dropout(0.5),
         Dense(output_size),
         Activation("softmax")
     ])
@@ -338,11 +337,11 @@ def wide_resnet(L, k, drop_rate=0.0):
         def conv(channels, strides,
                  params=dict(padding="same", use_bias=False)):
             def inner(x):
-                x = BatchNormalization()(x)
+                x = LayerNormalization()(x)
                 x = Activation("relu")(x)
                 x = Convolution2D(channels, 3, strides=strides, **params)(x)
                 x = Dropout(drop_rate)(x) if drop_rate > 0 else x
-                x = BatchNormalization()(x)
+                x = LayerNormalization()(x)
                 x = Activation("relu")(x)
                 x = Convolution2D(channels, 3, **params)(x)
                 return x
@@ -379,7 +378,7 @@ def wide_resnet(L, k, drop_rate=0.0):
         x = group2(x)
         x = group3(x)
 
-        x = BatchNormalization()(x)
+        x = LayerNormalization()(x)
         x = Activation("relu")(x)
         x = GlobalAveragePooling2D()(x)
         x = Dense(output_size)(x)

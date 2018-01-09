@@ -42,6 +42,7 @@ class TestTraining(unittest.TestCase):
             history = model.fit(x, y, epochs=5)
             self.assertTrue("loss" in history.history)
             self.assertEqual(len(history.history["loss"]), 5)
+            self.assertFalse(any(np.isnan(history.history["loss"])))
 
     def test_generator_training(self):
         def gen():
@@ -72,6 +73,7 @@ class TestTraining(unittest.TestCase):
             )
             self.assertTrue("loss" in history.history)
             self.assertEqual(len(history.history["loss"]), 5)
+            self.assertFalse(any(np.isnan(history.history["loss"])))
 
         with self.assertRaises(NotImplementedError):
             ApproximateImportanceTraining(self.model).fit_generator(
@@ -90,6 +92,7 @@ class TestTraining(unittest.TestCase):
             history = model.fit([x1, x2], y, epochs=5, batch_size=16)
             self.assertTrue("loss" in history.history)
             self.assertEqual(len(history.history["loss"]), 5)
+            self.assertFalse(any(np.isnan(history.history["loss"])))
 
 
 if __name__ == "__main__":

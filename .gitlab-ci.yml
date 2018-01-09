@@ -11,7 +11,7 @@ test:
         - pip install tensorflow
         - pip install h5py
         - pip install -e .
-        - python -m unittest discover -s tests/
+        - python -m unittest discover -s tests/ -v
         - deactivate
         - virtualenv -p python3 venv3
         - source venv3/bin/activate
@@ -20,5 +20,5 @@ test:
         - pip install tensorflow
         - pip install h5py
         - pip install -e .
-        - python -m unittest discover -s tests/
+        - python -m unittest discover -s tests/ -v
         - deactivate
