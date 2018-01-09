@@ -15,7 +15,7 @@ import numpy as np
 
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, MNIST, \
-    OntheflyAugmentedImages, ImageNetDownsampled
+    OntheflyAugmentedImages, ImageNetDownsampled, PennTreeBank
 from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.reweighting import BiasedReweightingPolicy
 from importance_sampling.utils import tf_config
@@ -26,7 +26,8 @@ def build_grad(network):
     """Return the gradient of the network."""
     x = network.input
     y = network.output
-    y_true = K.placeholder(shape=K.int_shape(y))
+    target_shape = (None, 1) if "sparse" in network.loss else K.int_shape(y)
+    y_true = K.placeholder(shape=target_shape)
     sample_weights = K.placeholder(shape=(None,))
 
     l = K.mean(sample_weights * get_loss(network.loss)(y_true, y))
@@ -101,6 +102,7 @@ def load_dataset(dataset):
             os.getenv("IMAGENET"),
             size=32
         ),
+        "ptb": partial(PennTreeBank, 20),
     }
 
     return datasets[dataset]()
@@ -119,7 +121,7 @@ def main(argv):
     parser.add_argument(
         "model",
         choices=[
-            "small_cnn", "cnn", "wide_resnet_28_2"
+            "small_cnn", "cnn", "wide_resnet_28_2", "lstm_lm"
         ],
         help="Choose the type of the model"
     )
@@ -131,7 +133,7 @@ def main(argv):
         "dataset",
         choices=[
             "mnist", "cifar10", "cifar100", "cifar10-augmented",
-            "cifar100-augmented", "imagenet-32x32"
+            "cifar100-augmented", "imagenet-32x32", "ptb"
         ],
         help="Choose the dataset to compute the loss"
     )
