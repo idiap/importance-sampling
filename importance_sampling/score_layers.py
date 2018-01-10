@@ -30,11 +30,12 @@ def _per_sample_loss(loss_function, mask, x):
         mask = [K.cast(m, K.floatx()) for m in mask if m is not None]
         mask = reduce(lambda a, b: a*b, mask)
         loss *= mask
-        loss /= K.mean(mask)
+        loss /= K.mean(mask, axis=-1, keepdims=True)
 
     # If the loss has more than 1 dimensions then aggregate the last dimension
-    while len(K.int_shape(loss)) > 1:
-        loss = K.mean(loss, axis=-1)
+    dims = len(K.int_shape(loss))
+    if dims > 1:
+        loss = K.mean(loss, axis=list(range(1, dims)))
 
     return K.expand_dims(loss)
 
@@ -114,7 +115,7 @@ class GradientNormLayer(Layer):
         losses = _per_sample_loss(self.loss, mask, x)
         if self.fast:
             grads = K.sqrt(sum([
-                K.sum(K.square(g), axis=1)
+                self._sum_per_sample(K.square(g))
                 for g in K.gradients(losses, self.parameter_list)
             ]))
         else:
@@ -126,6 +127,14 @@ class GradientNormLayer(Layer):
             )
 
         return K.reshape(grads, (-1, 1))
+
+    def _sum_per_sample(self, x):
+        """Sum across all the dimensions except the batch dim"""
+        # Instead we might be able to use x.ndims but there have been problems
+        # with ndims and Keras so I think len(int_shape()) is more reliable
+        dims = len(K.int_shape(x))
+        return K.sum(x, axis=list(range(1, dims)))
+
 
     def _grad_norm(self, loss):
         grads = K.gradients(loss, self.parameter_list)
