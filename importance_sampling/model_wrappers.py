@@ -7,9 +7,9 @@ from functools import partial
 
 from blinker import signal
 from keras import backend as K
-from keras.layers import Activation, Input, Lambda, multiply
+from keras.layers import Activation, Input, Layer, multiply
 from keras.metrics import categorical_accuracy, binary_accuracy, \
-    get as get_metric
+    get as get_metric, sparse_categorical_accuracy
 import numpy as np
 from transparent_keras import TransparentModel
 
@@ -24,20 +24,61 @@ def _tolist(x):
     return x
 
 
-def generic_accuracy(y_true, y_pred):
-    if K.int_shape(y_pred)[1] == 1:
-        return binary_accuracy(y_true, y_pred)
-    else:
+class MetricLayer(Layer):
+    """Create a layer that computes a metric taking into account masks"""
+    def __init__(self, metric_func, **kwargs):
+        self.supports_masking = True
+        self.metric_func = metric_func
+
+        super(MetricLayer, self).__init__(**kwargs)
+
+    def compute_mask(self, inputs, input_mask):
+        return None
+
+    def build(self, input_shape):
+        # Special care for accuracy because keras treats it specially
+        if "accuracy" in self.metric_func:
+            self.metric_func = self._generic_accuracy
+        self.metric_func = compose(K.expand_dims, get_metric(self.metric_func))
+
+        super(MetricLayer, self).build(input_shape)
+
+    def compute_output_shape(self, input_shape):
+        # We need two inputs y_true, y_pred
+        assert len(input_shape) == 2
+
+        return (input_shape[0][0], 1)
+
+    def call(self, inputs, mask=None):
+        # Compute the metric
+        metric = self.metric_func(*inputs)
+        if K.int_shape(metric)[-1] == 1:
+            metric = K.squeeze(metric, axis=-1)
+
+        # Apply the mask if needed
+        if mask is not None:
+            if not isinstance(mask, list):
+                mask = [mask]
+            mask = [K.cast(m, K.floatx()) for m in mask if m is not None]
+            mask = reduce(lambda a, b: a*b, mask)
+            metric *= mask
+            metric /= K.mean(mask, axis=-1, keepdims=True)
+
+        # Make sure that the tensor returned is (None, 1)
+        dims = len(K.int_shape(metric))
+        if dims > 1:
+            metric = K.mean(metric, axis=list(range(1, dims)))
+
+        return K.expand_dims(metric)
+
+    @staticmethod
+    def _generic_accuracy(y_true, y_pred):
+        if K.int_shape(y_pred)[1] == 1:
+            return binary_accuracy(y_true, y_pred)
+        if K.int_shape(y_true)[-1] == 1:
+            return sparse_categorical_accuracy(y_true, y_pred)
+
         return categorical_accuracy(y_true, y_pred)
-
-
-def MetricLayer(metric_func):
-    # Special care for accuracy because keras treats it specially
-    if "accuracy" in metric_func:
-        metric_func = generic_accuracy
-    metric_func = compose(K.expand_dims, get_metric(metric_func))
-
-    return Lambda(lambda inputs: metric_func(*inputs), output_shape=(None, 1))
 
 
 def _get_scoring_layer(score, y_true, y_pred, loss="categorical_crossentropy",
