@@ -162,6 +162,11 @@ class BaseDataset(object):
         """Return the number of outputs"""
         raise NotImplementedError()
 
+    @property
+    def output_shape(self):
+        """Return the shape of the output (it could differ for seq models for
+        instance)."""
+        return (self.output_size,)
 
 
 class InMemoryDataset(BaseDataset):
@@ -637,3 +642,71 @@ class ImageNetDownsampled(BaseDataset):
     @property
     def output_size(self):
         return 1000
+
+
+class TIMIT(BaseDataset):
+    """Load the TIMIT dataset [1] from a custom pickled format.
+
+    The format is the following:
+        [
+            X_train,
+            y_train,
+            X_val,
+            y_val,
+            X_test,
+            y_test
+        ]
+
+        Each X_* is a list of numpy arrays that contain the full utterance
+        features.
+
+        Each y_* is a list of numpy arrays that contain the per phoneme label
+        for the full utterance.
+
+    [1] Garofolo, John S., et al. TIMIT Acoustic-Phonetic Continuous Speech
+        Corpus LDC93S1. Web Download. Philadelphia: Linguistic Data Consortium,
+        1993
+    """
+    def __init__(self, path, val=False):
+        # Read the data
+        data = pickle.load(open(path))
+        train = data[:2]
+        test = data[2:4] if val else data[4:]
+
+        # Compute the maximum length of all utterances
+        T = max(
+            max(len(x) for x in train[0]),
+            max(len(x) for x in test[0])
+        )
+
+        self._x_train, self._y_train = self._create_padded_xy(train, T)
+        self._x_test, self._y_test = self._create_padded_xy(test, T)
+        self._voc_size = self._y_train.max()+1
+
+    def _create_padded_xy(self, data, T):
+        X = np.zeros((len(data[0]), T, data[0][0].shape[-1]), dtype=np.float32)
+        y = np.zeros((len(data[0]), T, 1), dtype=np.int32)
+
+        for i, (xi, yi) in enumerate(zip(*data)):
+            X[i, :len(xi)] = xi
+            y[i, :len(yi), 0] = yi
+
+        return X, y
+
+    def _train_data(self, idxs=slice(None)):
+        return self._x_train[idxs], self._y_train[idxs]
+
+    def _test_data(self, idxs=slice(None)):
+        return self._x_test[idxs], self._y_test[idxs]
+
+    @property
+    def shape(self):
+        return self._x_train.shape[1:]
+
+    @property
+    def output_size(self):
+        return self._voc_size
+
+    @property
+    def output_shape(self):
+        return self._y_train.shape[1:]

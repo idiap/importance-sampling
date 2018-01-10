@@ -16,6 +16,8 @@ from keras.layers import    \
     Input,                  \
     LSTM,                   \
     MaxPooling2D,           \
+    Masking,                \
+    TimeDistributed,        \
     add
 from keras.models import Model, Sequential
 from keras.optimizers import SGD
@@ -317,6 +319,23 @@ def build_lstm_lm3(input_shape, output_size):
     return model
 
 
+def build_lstm_timit(input_shape, output_size):
+    """Build a simple LSTM to classify the phonemes in the TIMIT dataset"""
+    model = Sequential([
+        Masking(mask_value=0, input_shape=input_shape),
+        LSTM(256, return_sequences=True),
+        TimeDistributed(Dense(output_size, activation="softmax"))
+    ])
+
+    model.compile(
+        optimizer="adam",
+        loss="sparse_categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+
+    return model
+
+
 def build_small_cnn_squared(input_shape, output_size):
     def squared_categorical_crossent(y_true, y_pred):
         return K.square(K.categorical_crossentropy(y_pred, y_true))
@@ -406,6 +425,7 @@ def get(name):
         "lstm_lm": build_lstm_lm,
         "lstm_lm2": build_lstm_lm2,
         "lstm_lm3": build_lstm_lm3,
+        "lstm_timit": build_lstm_timit,
         "wide_resnet_16_4": wide_resnet(16, 4),
         "wide_resnet_16_4_dropout": wide_resnet(16, 4, 0.3),
         "wide_resnet_28_2": wide_resnet(28, 2),
