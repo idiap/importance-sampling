@@ -10,7 +10,7 @@ from keras import initializers
 
 class BatchRenormalization(Layer):
     """Batch renormalization layer (Sergey Ioffe, 2017).
-    
+
     # Arguments
         momentum: Momentum for the moving average
         epsilon: Added to variance to avoid divide by 0
@@ -186,7 +186,7 @@ class LayerNormalization(Layer):
         # axes
         self.reduction_axes = [
             ax for ax in range(ndims)
-            if ax > 0 and (ax+ndims)%ndims not in axes
+            if ax > 0 and (ax+ndims) % ndims not in axes
         ]
 
         # Create trainable variables
