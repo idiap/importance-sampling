@@ -143,7 +143,7 @@ def load_dataset(dataset, hyperparams):
                 height_shift_range=0.1,
                 horizontal_flip=True,
                 vertical_flip=False
-            )),
+            ), N=15*10**5),
             CIFAR10
         ),
         "cifar100-augmented": compose(
