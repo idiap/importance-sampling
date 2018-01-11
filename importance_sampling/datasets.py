@@ -186,7 +186,7 @@ class InMemoryDataset(BaseDataset):
         elif issubclass(y_train.dtype.type, np.integer):
             self._y_train = y_train
             self._y_test = y_test
-            self._output_size = self._y_train.max() + 1  # assume 0 based indexes
+            self._output_size = self._y_train.max() + 1  # assume 0 based idxs
 
         # not classification, just copy them
         else:
@@ -414,7 +414,7 @@ class OntheflyAugmentedImages(BaseDataset):
 
         # Create an LRU cache to speed things up a bit for the transforms
         cache_size = cache_size or len(self.dataset.train_data)
-        self.cache = OrderedDict([(-i,i) for i in range(cache_size)])
+        self.cache = OrderedDict([(-i, i) for i in range(cache_size)])
         self.cache_data = np.empty(
             shape=(cache_size,) + self.dataset.shape,
             dtype=np.float32
@@ -644,7 +644,7 @@ class ImageNetDownsampled(BaseDataset):
         return 1000
 
 
-class TIMIT(BaseDataset):
+class TIMIT(InMemoryDataset):
     """Load the TIMIT dataset [1] from a custom pickled format.
 
     The format is the following:
@@ -667,46 +667,27 @@ class TIMIT(BaseDataset):
         Corpus LDC93S1. Web Download. Philadelphia: Linguistic Data Consortium,
         1993
     """
-    def __init__(self, path, val=False):
+    def __init__(self, context, path, val=False):
         # Read the data
         data = pickle.load(open(path))
         train = data[:2]
         test = data[2:4] if val else data[4:]
 
-        # Compute the maximum length of all utterances
-        T = max(
-            max(len(x) for x in train[0]),
-            max(len(x) for x in test[0])
+        x_train, y_train = self._create_xy(train, context)
+        x_test, y_test = self._create_xy(test, context)
+
+        super(TIMIT, self).__init__(
+            x_train, y_train,
+            x_test, y_test,
+            categorical=False
         )
 
-        self._x_train, self._y_train = self._create_padded_xy(train, T)
-        self._x_test, self._y_test = self._create_padded_xy(test, T)
-        self._voc_size = self._y_train.max()+1
+    def _create_xy(self, data, context):
+        X = []
+        y = []
+        for xi, yi in zip(*data):
+            for j in range(context-1, len(xi)):
+                X.append(xi[j-context+1:j+1])
+                y.append(yi[j:j+1])  # slice so that y.shape == (?, 1)
 
-    def _create_padded_xy(self, data, T):
-        X = np.zeros((len(data[0]), T, data[0][0].shape[-1]), dtype=np.float32)
-        y = np.zeros((len(data[0]), T, 1), dtype=np.int32)
-
-        for i, (xi, yi) in enumerate(zip(*data)):
-            X[i, :len(xi)] = xi
-            y[i, :len(yi), 0] = yi
-
-        return X, y
-
-    def _train_data(self, idxs=slice(None)):
-        return self._x_train[idxs], self._y_train[idxs]
-
-    def _test_data(self, idxs=slice(None)):
-        return self._x_test[idxs], self._y_test[idxs]
-
-    @property
-    def shape(self):
-        return self._x_train.shape[1:]
-
-    @property
-    def output_size(self):
-        return self._voc_size
-
-    @property
-    def output_shape(self):
-        return self._y_train.shape[1:]
+        return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)

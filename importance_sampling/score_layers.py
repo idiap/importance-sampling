@@ -29,8 +29,10 @@ def _per_sample_loss(loss_function, mask, x):
             mask = [mask]
         mask = [K.cast(m, K.floatx()) for m in mask if m is not None]
         mask = reduce(lambda a, b: a*b, mask)
+        mask_dims = len(K.int_shape(mask))
+        mask_mean = K.mean(mask, axis=list(range(1, mask_dims)), keepdims=True)
         loss *= mask
-        loss /= K.mean(mask, axis=-1, keepdims=True)
+        loss /= mask_mean
 
     # If the loss has more than 1 dimensions then aggregate the last dimension
     dims = len(K.int_shape(loss))
@@ -134,7 +136,6 @@ class GradientNormLayer(Layer):
         # with ndims and Keras so I think len(int_shape()) is more reliable
         dims = len(K.int_shape(x))
         return K.sum(x, axis=list(range(1, dims)))
-
 
     def _grad_norm(self, loss):
         grads = K.gradients(loss, self.parameter_list)

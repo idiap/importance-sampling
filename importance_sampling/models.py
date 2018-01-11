@@ -322,9 +322,9 @@ def build_lstm_lm3(input_shape, output_size):
 def build_lstm_timit(input_shape, output_size):
     """Build a simple LSTM to classify the phonemes in the TIMIT dataset"""
     model = Sequential([
-        Masking(mask_value=0, input_shape=input_shape),
-        LSTM(256, return_sequences=True),
-        TimeDistributed(Dense(output_size, activation="softmax"))
+        LSTM(256, unroll=True, input_shape=input_shape),
+        Dense(output_size),
+        Activation("softmax")
     ])
 
     model.compile(

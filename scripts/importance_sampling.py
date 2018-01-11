@@ -174,6 +174,7 @@ def load_dataset(dataset, hyperparams):
         ),
         "timit": partial(
             TIMIT,
+            20,
             hyperparams.get("timit", os.getenv("TIMIT"))
         )
     }
