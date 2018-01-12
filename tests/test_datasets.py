@@ -11,7 +11,7 @@ import numpy as np
 
 from importance_sampling.datasets import CIFAR10, CIFARSanityCheck, MNIST, \
     CanevetICML2016, OntheflyAugmentedImages, PennTreeBank, GeneratorDataset, \
-    InMemoryImageDataset
+    InMemoryImageDataset, ZCAWhitening
 from importance_sampling.utils.functional import compose
 
 
@@ -56,6 +56,26 @@ class TestDatasets(unittest.TestCase):
         for args in datasets:
             self._test_dset(*args)
 
+    def test_zca_whitening(self):
+        dset = ZCAWhitening(InMemoryImageDataset(
+            np.random.rand(1000, 32, 32, 3),
+            (np.random.rand(1000, 1)*10).astype(np.int32),
+            np.random.rand(1000, 32, 32, 3),
+            (np.random.rand(1000, 1)*10).astype(np.int32)
+        ))
+
+        self.assertEqual(len(dset.train_data), 1000)
+        self.assertEqual(len(dset.test_data), 1000)
+
+        idxs = np.random.choice(len(dset.train_data), 100)
+        x_r, y_r = dset.train_data[idxs]
+        self.assertEqual(x_r.shape, (100, 32, 32, 3))
+        self.assertEqual(y_r.shape, (100, 10))
+        for i in range(10):
+            x, y = dset.train_data[idxs]
+            self.assertTrue(np.all(x_r == x))
+            self.assertTrue(np.all(y_r == y))
+
     def test_image_augmentation(self):
         dset = InMemoryImageDataset(
             np.random.rand(1000, 32, 32, 3),
@@ -90,7 +110,7 @@ class TestDatasets(unittest.TestCase):
         dset = OntheflyAugmentedImages(
             dset,
             dict(
-                featurewise_center=False,
+                featurewise_center=True,
                 samplewise_center=False,
                 featurewise_std_normalization=False,
                 samplewise_std_normalization=False,

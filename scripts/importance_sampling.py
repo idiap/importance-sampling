@@ -24,7 +24,7 @@ from keras.utils import plot_model
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
     CanevetICML2016, MNIST, OntheflyAugmentedImages, PennTreeBank, \
-    ImageNetDownsampled, TIMIT
+    ImageNetDownsampled, TIMIT, ZCAWhitening
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
 from importance_sampling.model_wrappers import OracleWrapper
@@ -137,13 +137,14 @@ def load_dataset(dataset, hyperparams):
                 samplewise_center=False,
                 featurewise_std_normalization=False,
                 samplewise_std_normalization=False,
-                zca_whitening=True,
+                zca_whitening=False,
                 rotation_range=0,
                 width_shift_range=0.1,
                 height_shift_range=0.1,
                 horizontal_flip=True,
                 vertical_flip=False
             ), N=15*10**5),
+            ZCAWhitening,
             CIFAR10
         ),
         "cifar100-augmented": compose(
@@ -159,6 +160,22 @@ def load_dataset(dataset, hyperparams):
                 horizontal_flip=True,
                 vertical_flip=False
             )),
+            CIFAR100
+        ),
+        "cifar100-whitened-augmented": compose(
+            partial(OntheflyAugmentedImages, ___, dict(
+                featurewise_center=False,
+                samplewise_center=False,
+                featurewise_std_normalization=False,
+                samplewise_std_normalization=False,
+                zca_whitening=False,
+                rotation_range=0,
+                width_shift_range=0.1,
+                height_shift_range=0.1,
+                horizontal_flip=True,
+                vertical_flip=False
+            ), N=15*10**5),
+            ZCAWhitening,
             CIFAR100
         ),
         "ptb": partial(PennTreeBank, 20),

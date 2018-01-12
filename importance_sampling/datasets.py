@@ -217,7 +217,7 @@ class InMemoryDataset(BaseDataset):
 class InMemoryImageDataset(InMemoryDataset):
     """Make sure that the in memory dataset has 4 dimensions and is normalized
     to [0, 1]"""
-    def __init__(self, X_train, y_train, X_test, y_test):
+    def __init__(self, X_train, y_train, X_test, y_test, categorical=True):
         # Expand the dims and make sure the shapes are correct image shapes
         if len(X_train.shape) < 4:
             X_train = np.expand_dims(X_train, axis=-1)
@@ -233,7 +233,8 @@ class InMemoryImageDataset(InMemoryDataset):
             X_train,
             y_train,
             X_test,
-            y_test
+            y_test,
+            categorical=categorical
         )
 
 
@@ -339,6 +340,35 @@ class GeneratorDataset(BaseDataset):
     @property
     def output_size(self):
         return self._output_size
+
+
+class ZCAWhitening(InMemoryImageDataset):
+    """Make a whitened copy of the decorated dataset in memory."""
+    def __init__(self, dataset):
+        # Get the data in memory
+        x_train, y_train = dataset.train_data[:]
+        x_test, y_test = dataset.test_data[:]
+
+        # Make the whitener and train it
+        gen = ImageDataGenerator(zca_whitening=True, featurewise_center=True)
+        gen.fit(x_train)
+
+        batches_train = list(islice(
+            gen.flow(x_train, y_train, 32),
+            int(np.ceil(len(x_train) / 32.))
+        ))
+        batches_test = list(islice(
+            gen.flow(x_test, y_test, 32),
+            int(np.ceil(len(x_test) / 32.))
+        ))
+
+        super(ZCAWhitening, self).__init__(
+            np.vstack([b[0] for b in batches_train]),
+            np.vstack([b[1] for b in batches_train]),
+            np.vstack([b[0] for b in batches_test]),
+            np.vstack([b[1] for b in batches_test]),
+            categorical=False
+        )
 
 
 class AugmentedImages(BaseDataset):
