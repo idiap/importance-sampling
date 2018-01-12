@@ -212,3 +212,32 @@ class LayerNormalization(Layer):
         std = K.std(x, self.reduction_axes, keepdims=True) + self.epsilon
 
         return self.gamma*(x-mean)/std + self.beta
+
+
+class Bias(Layer):
+    """Just add a per feature bias for other types of """
+    def __init__(self, **kwargs):
+        self.dim = None
+
+        super(Bias, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        self.dim = input_shape[-1]
+        if self.dim is None:
+            raise ValueError(("The feature axis should have a "
+                              "defined dimension"))
+
+
+        self.bias = self.add_weight(
+            shape=(self.dim,),
+            name="bias",
+            initializer=initializers.get("zeros")
+        )
+
+        self.built = True
+
+    def call(self, inputs):
+        x = inputs
+        assert not isinstance(x, list)
+
+        return x + self.bias
