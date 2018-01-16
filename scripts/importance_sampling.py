@@ -504,7 +504,7 @@ def main(argv):
             "canevet-icml2016-smooth", "cifar-sanity-check", "mnist",
             "cifar10", "cifar100", "cifar10-augmented", "cifar100-augmented",
             "ptb", "cifar10-whitened-augmented", "imagenet-32x32",
-            "imagenet-64x64", "timit"
+            "imagenet-64x64", "timit", "cifar100-whitened-augmented"
         ],
         help="Choose the dataset to train on"
     )

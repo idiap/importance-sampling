@@ -15,7 +15,7 @@ import numpy as np
 
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, MNIST, \
-    OntheflyAugmentedImages, ImageNetDownsampled, PennTreeBank
+    OntheflyAugmentedImages, ImageNetDownsampled, PennTreeBank, ZCAWhitening
 from importance_sampling.model_wrappers import OracleWrapper
 from importance_sampling.reweighting import BiasedReweightingPolicy
 from importance_sampling.utils import tf_config
@@ -82,6 +82,22 @@ def load_dataset(dataset):
             )),
             CIFAR10
         ),
+        "cifar10-whitened-augmented": compose(
+            partial(OntheflyAugmentedImages, ___, dict(
+                featurewise_center=False,
+                samplewise_center=False,
+                featurewise_std_normalization=False,
+                samplewise_std_normalization=False,
+                zca_whitening=False,
+                rotation_range=0,
+                width_shift_range=0.1,
+                height_shift_range=0.1,
+                horizontal_flip=True,
+                vertical_flip=False
+            ), N=15*10**5),
+            ZCAWhitening,
+            CIFAR10
+        ),
         "cifar100-augmented": compose(
             partial(OntheflyAugmentedImages, ___, dict(
                 featurewise_center=False,
@@ -95,6 +111,22 @@ def load_dataset(dataset):
                 horizontal_flip=True,
                 vertical_flip=False
             )),
+            CIFAR100
+        ),
+        "cifar100-whitened-augmented": compose(
+            partial(OntheflyAugmentedImages, ___, dict(
+                featurewise_center=False,
+                samplewise_center=False,
+                featurewise_std_normalization=False,
+                samplewise_std_normalization=False,
+                zca_whitening=False,
+                rotation_range=0,
+                width_shift_range=0.1,
+                height_shift_range=0.1,
+                horizontal_flip=True,
+                vertical_flip=False
+            ), N=15*10**5),
+            ZCAWhitening,
             CIFAR100
         ),
         "imagenet-32x32": partial(
@@ -133,7 +165,8 @@ def main(argv):
         "dataset",
         choices=[
             "mnist", "cifar10", "cifar100", "cifar10-augmented",
-            "cifar100-augmented", "imagenet-32x32", "ptb"
+            "cifar100-augmented", "imagenet-32x32", "ptb",
+            "cifar10-whitened-augmented", "cifar100-whitened-augmented"
         ],
         help="Choose the dataset to compute the loss"
     )
