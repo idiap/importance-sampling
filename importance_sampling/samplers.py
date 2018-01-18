@@ -134,6 +134,57 @@ class ModelSampler(BaseSampler):
         )
 
 
+class CacheSampler(BaseSampler):
+    """CacheSampler uses the recent outputs of the model to determine the
+    importance of the samples"""
+    def __init__(self, dataset, reweighting, staleness=3, cache_prob=0.5,
+                 smooth=0.2):
+        # Necessary state for implementing the cache sampler
+        self._N = N = len(dataset.train_data)
+        self._idxs = np.arange(N)
+        self._scores = np.ones((N,))
+        self._cache = {}
+        self._score_sum = 0.0
+
+        # Configuration
+        self._staleness = staleness
+        self._alpha = cache_prob / (1-cache_prob)
+        self._smooth = smooth
+
+        super(CacheSampler, self).__init__(dataset, reweighting)
+
+    def _get_samples_with_scores(self, batch_size):
+        return (
+            self._idxs,
+            self._scores,
+            None
+        )
+
+    def update(self, idxs, x):
+        # Add the new scores to the cache
+        for idx, xi in zip(idxs, x):
+            self._cache[idx] = (self._smooth + xi, 0)
+
+        # Remove the stale values
+        self._score_sum = 0.0
+        keys = self._cache.keys()
+        for k in keys:
+            item = self._cache[k]
+            if item[1] > self._staleness:
+                self._scores[k] = 1
+                del self._cache[k]
+            else:
+                self._cache[k] = (item[0], item[1]+1)
+                self._score_sum += item[0]
+
+        # Recompute the scores for sampling
+        N = self._N
+        S = self._score_sum
+        a = self._alpha
+        for k, (s, _) in self._cache.items():
+            self._scores[k] = 1 + a * N * s / S
+
+
 class LSTMSampler(BaseSampler):
     """Use an LSTM to predict the loss based on the previous losses of each
     sample
@@ -442,6 +493,50 @@ class WarmupSampler(SamplerDecorator):
             scores,
             xy
         )
+
+
+class ExponentialOpportunitySampler(SamplerDecorator):
+    """Compute the MLE estimate of an exponential distribution generating the
+    scores and sample only if lambda is larger than x.
+
+    Arguments
+    ---------
+        sampler: BaseSampler
+                 The sampler to be decorated
+        lambda_th: float
+                   The threshold of the lambda parameter after which we do
+                   importance sampling
+    """
+    def __init__(self, sampler, lambda_th=2.0):
+        self._lambda_th = lambda_th
+        self._lambda = 0.0
+        self._update_lambda = True
+        self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
+        super(ExponentialOpportunitySampler, self).__init__(sampler)
+
+    def _get_samples_with_scores(self, batch_size):
+        if self._lambda > self._lambda_th:
+            idxs, scores, xy = \
+                self.sampler._get_samples_with_scores(batch_size)
+            self._lambda = 0.9 * self._lambda + 0.1 / scores.mean()
+            self._update_lambda = False
+        else:
+            idxs, scores, xy = \
+                self.uniform._get_samples_with_scores(batch_size)
+            if scores is None:
+                scores = np.ones(len(idxs))
+            self._update_lambda = True
+
+        return (
+            idxs,
+            scores,
+            xy
+        )
+
+    def update(self, idxs, scores):
+        if self._update_lambda:
+            self._lambda = 0.9 * self._lambda + 0.1 / scores.mean()
+        super(ExponentialOpportunitySampler, self).update(idxs, scores)
 
 
 class HistorySampler(ModelSampler):

@@ -104,7 +104,6 @@ def build_small_cnn(input_shape, output_size):
         Convolution2D(32, kernel_size=3, padding="same"),
         Activation("relu"),
         MaxPooling2D(pool_size=(2, 2)),
-        Dropout(0.25),
 
         # conv2_*
         Convolution2D(64, kernel_size=3, padding="same"),
@@ -112,16 +111,13 @@ def build_small_cnn(input_shape, output_size):
         Convolution2D(64, kernel_size=3, padding="same"),
         Activation("relu"),
         MaxPooling2D(pool_size=(2, 2)),
-        Dropout(0.25),
 
         # Fully connected
         Flatten(),
         Dense(512),
         Activation("relu"),
-        Dropout(0.5),
         Dense(512),
         Activation("relu"),
-        Dropout(0.5),
         Dense(output_size),
         Activation("softmax")
     ])
