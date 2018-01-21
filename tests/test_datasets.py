@@ -77,7 +77,7 @@ class TestDatasets(unittest.TestCase):
             self.assertTrue(np.all(y_r == y))
 
     def test_image_augmentation(self):
-        dset = InMemoryImageDataset(
+        orig_dset = InMemoryImageDataset(
             np.random.rand(1000, 32, 32, 3),
             (np.random.rand(1000, 1)*10).astype(np.int32),
             np.random.rand(1000, 32, 32, 3),
@@ -85,7 +85,7 @@ class TestDatasets(unittest.TestCase):
         )
 
         dset = OntheflyAugmentedImages(
-            dset,
+            orig_dset,
             dict(
                 featurewise_center=False,
                 samplewise_center=False,
@@ -108,7 +108,7 @@ class TestDatasets(unittest.TestCase):
             self.assertTrue(np.all(y_r == y))
 
         dset = OntheflyAugmentedImages(
-            dset,
+            orig_dset,
             dict(
                 featurewise_center=True,
                 samplewise_center=False,
