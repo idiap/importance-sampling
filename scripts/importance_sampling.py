@@ -52,8 +52,12 @@ class WallClock(object):
         self._file = open(filepath, "w")
         self._start = time.time()
 
+    @property
+    def elapsed(self):
+        return time.time() - self._start
+
     def write(self):
-        self._file.write("%f\n" % (time.time() - self._start))
+        self._file.write("%f\n" % (self.elapsed,))
         self._file.flush()
 
 
@@ -660,6 +664,7 @@ def main(argv):
     should_snapshot = every_nth(args.snapshot_period)
     clock = WallClock(path.join(args.output_directory, "clock.txt"))
     # Main training loop
+    time_based = args.hyperparams.get("time_based", 0)
     lr = args.hyperparams.get("lr", 1e-3)
     lr_changes = args.hyperparams.get("lr_changes", [])
     lr_targets = [lr] + args.hyperparams.get("lr_targets", [])
@@ -667,7 +672,9 @@ def main(argv):
     batch_size = args.hyperparams.get("batch_size", 128)
     train_idxs_step = max(1, len(dataset.train_data) // len(dataset.test_data))
     train_idxs = np.arange(len(dataset.train_data))[::train_idxs_step]
-    for b in range(args.train_for):
+    b = 0
+    i = 0
+    while b < args.train_for:
         # Set the learning rate for this mini batch
         new_lr = lr_targets[bisect_right(lr_changes, b)]
         if new_lr != current_lr:
@@ -693,27 +700,34 @@ def main(argv):
         # Save the model weights
         if args.save_model and should_snapshot():
             model.model.save_weights(
-                path.join(args.output_directory, "model.%06d.h5" % (b,))
+                path.join(args.output_directory, "model.%06d.h5" % (i,))
             )
             with ignored(AttributeError):
                 model.small_model.save_weights(
-                    path.join(args.output_directory, "small_model.%06d.h5" % (b,))
+                    path.join(args.output_directory, "small_model.%06d.h5" % (i,))
                 )
             with ignored(AttributeError):
                 sampler.model.save_weights(
-                    path.join(args.output_directory, "sampler_model.%06d.h5" % (b,))
+                    path.join(args.output_directory, "sampler_model.%06d.h5" % (i,))
                 )
+        # Update the iterations variable b and i
+        i += 1
+        if time_based:
+            b = clock.elapsed
+        else:
+            b += 1
+
     if args.save_model:
         model.model.save_weights(
             path.join(args.output_directory, "model.h5")
         )
         with ignored(AttributeError):
             model.small_model.save_weights(
-                path.join(args.output_directory, "small_model.h5" % (b,))
+                path.join(args.output_directory, "small_model.h5" % (i,))
             )
         with ignored(AttributeError):
             sampler.model.save_weights(
-                path.join(args.output_directory, "sampler_model.h5" % (b,))
+                path.join(args.output_directory, "sampler_model.h5" % (i,))
             )
 
 
