@@ -4,8 +4,10 @@
 #
 
 from keras import backend as K
+from keras.applications import ResNet50
 from keras.layers import    \
     Activation,             \
+    AveragePooling2D,       \
     Convolution2D,          \
     Dense,                  \
     Dropout,                \
@@ -23,7 +25,11 @@ from keras.models import Model, Sequential
 from keras.optimizers import SGD
 from keras.regularizers import l2
 
-from .layers import BatchRenormalization, Bias, LayerNormalization
+from .layers import       \
+    BatchRenormalization, \
+    Bias,                 \
+    LayerNormalization,   \
+    StatsBatchNorm
 
 
 def build_small_nn(input_shape, output_size):
@@ -416,6 +422,85 @@ def wide_resnet(L, k, drop_rate=0.0):
     return wide_resnet_impl
 
 
+def resnet_50(norm_layer=StatsBatchNorm, weights="imagenet", flatten=False):
+    def resnet_impl(input_shape, output_size):
+        def block(x_in, kernel, filters, strides, stage, block, resize=False):
+            name = "%d%s_branch" % (stage, block)
+            x = Convolution2D(filters[0], 1, strides=strides,
+                              name="res"+name+"2a")(x_in)
+            x = norm_layer(name="bn"+name+"2a")(x)
+            x = Activation("relu")(x)
+            x = Convolution2D(filters[1], kernel, padding="same",
+                              name="res"+name+"2b")(x)
+            x = norm_layer(name="bn"+name+"2b")(x)
+            x = Activation("relu")(x)
+            x = Convolution2D(filters[2], 1, name="res"+name+"2c")(x)
+            x = norm_layer(name="bn"+name+"2c")(x)
+
+            if resize:
+                shortcut = Convolution2D(filters[2], 1, strides=strides,
+                              name="res"+name+"1")(x_in)
+                shortcut = norm_layer(name="bn"+name+"1")(shortcut)
+            else:
+                shortcut = x_in
+
+            return Activation("relu")(add([x, shortcut]))
+
+        x_in = Input(shape=input_shape)
+
+        x = Convolution2D(64, 7, strides=2, padding="same", name="conv1")(x_in)
+        x = norm_layer(name="bn_conv1")(x)
+        x = Activation("relu")(x)
+        x = MaxPooling2D((3, 3), strides=(2, 2))(x)
+
+        x = block(x, 3, [64, 64, 256], 1, 2, 'a', True)
+        x = block(x, 3, [64, 64, 256], 1, 2, 'b')
+        x = block(x, 3, [64, 64, 256], 1, 2, 'c')
+
+        x = block(x, 3, [128, 128, 512], 2, 3, 'a', True)
+        x = block(x, 3, [128, 128, 512], 1, 3, 'b')
+        x = block(x, 3, [128, 128, 512], 1, 3, 'c')
+        x = block(x, 3, [128, 128, 512], 1, 3, 'd')
+
+        x = block(x, 3, [256, 256, 1024], 2, 4, 'a', True)
+        x = block(x, 3, [256, 256, 1024], 1, 4, 'b')
+        x = block(x, 3, [256, 256, 1024], 1, 4, 'c')
+        x = block(x, 3, [256, 256, 1024], 1, 4, 'd')
+        x = block(x, 3, [256, 256, 1024], 1, 4, 'e')
+        x = block(x, 3, [256, 256, 1024], 1, 4, 'f')
+
+        x = block(x, 3, [512, 512, 2048], 2, 5, 'a', True)
+        x = block(x, 3, [512, 512, 2048], 1, 5, 'b')
+        x = block(x, 3, [512, 512, 2048], 1, 5, 'c')
+
+        x = AveragePooling2D((7, 7), name="avg_pool")(x)
+
+        if flatten:
+            x = Flatten()(x)
+        else:
+            x = GlobalAveragePooling2D()(x)
+
+        x = Dense(output_size, name="fc"+str(output_size))(x)
+        y = Activation("softmax")(x)
+
+        model = Model(x_in, y, name="resnet50")
+        model.compile(
+            loss="categorical_crossentropy",
+            optimizer="adam",
+            metrics=["accuracy", "top_k_categorical_accuracy"]
+        )
+
+        if weights == "imagenet":
+            nn = ResNet50()
+            model.set_weights(
+                nn.get_weights()[:-2] + model.get_weights()[-2:]
+            )
+
+        return model
+
+    return resnet_impl
+
+
 def get(name):
     models = {
         "small_nn": build_small_nn,
@@ -432,6 +517,7 @@ def get(name):
         "wide_resnet_16_4_dropout": wide_resnet(16, 4, 0.3),
         "wide_resnet_28_2": wide_resnet(28, 2),
         "wide_resnet_28_10": wide_resnet(28, 10),
-        "wide_resnet_28_10_dropout": wide_resnet(28, 10, 0.3)
+        "wide_resnet_28_10_dropout": wide_resnet(28, 10, 0.3),
+        "pretrained_resnet50": resnet_50(flatten=True)
     }
     return models[name]

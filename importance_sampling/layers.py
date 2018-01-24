@@ -214,6 +214,86 @@ class LayerNormalization(Layer):
         return self.gamma*(x-mean)/std + self.beta
 
 
+class StatsBatchNorm(Layer):
+    """Use the accumulated statistics for batch norm instead of computing them
+    for each minibatch.
+
+    # Arguments
+        momentum: Momentum for the moving average
+        epsilon: Added to variance to avoid divide by 0
+    """
+    def __init__(self, momentum=0.99, epsilon=1e-3, **kwargs):
+        super(StatsBatchNorm, self).__init__(**kwargs)
+
+        self.momentum = momentum
+        self.epsilon = epsilon
+
+    def build(self, input_shape):
+        dim = input_shape[-1]
+        if dim is None:
+            raise ValueError(("The normalization axis should have a "
+                              "defined dimension"))
+        self.dim = dim
+
+        # Trainable part
+        self.gamma = self.add_weight(
+            shape=(dim,),
+            name="gamma",
+            initializer=initializers.get("ones")
+        )
+        self.beta = self.add_weight(
+            shape=(dim,),
+            name="beta",
+            initializer=initializers.get("zeros")
+        )
+
+        # Statistics
+        self.moving_mean = self.add_weight(
+            shape=(dim,),
+            name="moving_mean",
+            initializer=initializers.get("zeros"),
+            trainable=False
+        )
+        self.moving_variance = self.add_weight(
+            shape=(dim,),
+            name="moving_variance",
+            initializer=initializers.get("ones"),
+            trainable=False
+        )
+
+        self.built = True
+
+    def _moments(self, x):
+        axes = range(len(K.int_shape(x))-1)
+        if K.backend() == "tensorflow":
+            return K.tf.nn.moments(x, axes)
+        else:
+            return K.mean(x, axis=axes), K.var(x, axis=axes)
+
+    def call(self, inputs, training=None):
+        x = inputs
+        assert not isinstance(x, list)
+
+        # Do the normalization and the rescaling
+        xnorm = K.batch_normalization(
+            x,
+            self.moving_mean,
+            self.moving_variance,
+            self.beta,
+            self.gamma,
+            epsilon=self.epsilon
+        )
+
+        # Compute and update the minibatch statistics
+        mean, var = self._moments(x)
+        self.add_update([
+            K.moving_average_update(self.moving_mean, mean, self.momentum),
+            K.moving_average_update(self.moving_variance, var, self.momentum)
+        ], x)
+
+        return xnorm
+
+
 class Bias(Layer):
     """Just add a per feature bias for other types of """
     def __init__(self, **kwargs):
@@ -226,7 +306,6 @@ class Bias(Layer):
         if self.dim is None:
             raise ValueError(("The feature axis should have a "
                               "defined dimension"))
-
 
         self.bias = self.add_weight(
             shape=(self.dim,),
