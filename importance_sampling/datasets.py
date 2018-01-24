@@ -11,6 +11,7 @@ from os import path
 import pickle
 from tempfile import TemporaryFile
 
+from keras.applications.resnet50 import preprocess_input
 from keras.datasets import cifar10, cifar100, mnist
 from keras.preprocessing.image import ImageDataGenerator
 from keras.utils import np_utils
@@ -18,6 +19,11 @@ from keras.utils.generic_utils import Progbar
 import numpy as np
 
 from .utils.functional import compose
+
+try:
+    from PIL import Image as pil_image
+except ImportError:
+    pass
 
 
 class cifar_sanity_check(object):
@@ -721,3 +727,115 @@ class TIMIT(InMemoryDataset):
                 y.append(yi[j:j+1])  # slice so that y.shape == (?, 1)
 
         return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
+
+
+class MIT67(BaseDataset):
+    """Dataset interface to the MIT67 Indoor Scenes dataset [1].
+
+    The dataset is expected to be in the following format:
+        - base-path/
+         \_ images
+           \_ airport_inside
+           |_ artstudio
+           |_ ...
+         |_ TrainImages.txt
+         |_ TestImages.txt
+
+    1: Quattoni, Ariadna, and Antonio Torralba. "Recognizing indoor scenes."
+       Computer Vision and Pattern Recognition, 2009. CVPR 2009. IEEE
+       Conference on. IEEE, 2009.
+    """
+    def __init__(self, basepath):
+        self._base = basepath
+
+        # Read the file paths
+        self._train_set = np.array([
+            l.strip() for l in
+            open(path.join(basepath, "TrainImages.txt"))
+        ])
+        self._test_set = np.array([
+            l.strip() for l in
+            open(path.join(basepath, "TestImages.txt"))
+        ])
+
+        # Create masks to lazily read the data in memory
+        self._unread_train = np.ones(len(self._train_set), dtype=np.bool)
+        self._unread_test = np.ones(len(self._test_set), dtype=np.bool)
+
+        # Allocate space for the images
+        self._x_train = np.zeros(
+            (len(self._train_set), 224, 224, 3),
+            dtype=np.float32
+        )
+        self._x_test = np.zeros(
+            (len(self._test_set), 224, 224, 3),
+            dtype=np.float32
+        )
+
+        # Create the target classes
+        class_set = np.array(sorted(set([
+            filepath.split("/")[0]
+            for filepath in self._train_set
+        ])))
+        self._y_train = self._to_classes(self._train_set, class_set)
+        self._y_test = self._to_classes(self._test_set, class_set)
+
+    def _to_classes(self, files, class_set):
+        y = np.zeros((len(files), len(class_set)), dtype=np.float32)
+        for i, f in enumerate(files):
+            yi = f.split("/")[0]
+            y[i, np.searchsorted(class_set, yi)] = 1.
+        return y
+
+    def _read_and_return(self, unread, files, data, idxs):
+        if np.any(unread[idxs]):
+            for i in np.arange(len(files))[idxs]:
+                if not unread[i]:
+                    continue
+                data[i] = self._read_image(files[i])
+                unread[i] = False
+        return data[idxs]
+
+    def _train_size(self):
+        return len(self._x_train)
+
+    def _train_data(self, idxs=slice(None)):
+        return self._read_and_return(
+            self._unread_train,
+            self._train_set,
+            self._x_train,
+            idxs
+        ), self._y_train[idxs]
+
+    def _test_size(self):
+        return len(self._x_test)
+
+    def _test_data(self, idxs=slice(None)):
+        return self._read_and_return(
+            self._unread_test,
+            self._test_set,
+            self._x_test,
+            idxs
+        ), self._y_test[idxs]
+
+    def _read_image(self, image_path):
+        """Read an image from disk, resize, crop and preprocess it using the
+        ImageNet stats."""
+        image_path = path.join(self._base, "images", image_path)
+        img = pil_image.open(image_path).convert("RGB")
+        s = max(224./img.width, 224./img.height)
+        nw, nh = int(s * img.width), int(s * img.height)
+        pw, ph = int((nw - 224)/2), int((nh - 224)/2)
+        dims = nw, nh
+        box = (pw, ph, pw+224, ph+224)
+        img = img.resize(dims, pil_image.BILINEAR).crop(box)
+
+        return preprocess_input(np.array(img, dtype=np.float32))
+
+    @property
+    def shape(self):
+        return (224, 224, 3)
+
+    @property
+    def output_size(self):
+        return 67
