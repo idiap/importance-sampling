@@ -7,9 +7,12 @@ from collections import OrderedDict
 from functools import partial
 import gzip
 from itertools import islice
+import os
 from os import path
 import pickle
+import sys
 from tempfile import TemporaryFile
+from threading import Condition, Lock, Thread
 
 from keras.applications.resnet50 import preprocess_input
 from keras.datasets import cifar10, cifar100, mnist
@@ -839,3 +842,138 @@ class MIT67(BaseDataset):
     @property
     def output_size(self):
         return 67
+
+
+class CASIAWebFace(BaseDataset):
+    """Provide a BaseDataset interface to CASIAWebFace.
+
+    The interface is created for training with a triplet loss which is a bit
+    unorthodox.
+
+    Arguments
+    ---------
+        basepath: The path to the dataset
+        alpha: The margin for the triplet loss (returned as target)
+        validation: Consider as validation set all the person ids that %
+                    validation == 0
+    """
+    def __init__(self, basepath, alpha=0.2, embedding=128, validation=5,
+                 cache=1024):
+        # Save the configuration in member variables
+        self._alpha = alpha
+        self._embedding = embedding
+
+        # Load the paths for the images
+        self._basepath = basepath
+        ids = [x for x in os.listdir(basepath) if "." not in x]
+        self._train = np.array([
+            x for x in ids if int(x.replace("0", "")) % validation > 0
+        ])
+        self._n_images = np.array([
+            len([
+                img for img in os.listdir(path.join(basepath, x))
+                if img.endswith("jpg")
+            ]) for x in self._train
+        ])
+        self._idxs = np.arange(self._n_images.sum())
+
+        # Create the necessary variables for the cache
+        self._cache = np.zeros((cache, 3, 224, 224, 3), dtype=np.float32)
+        self._cache_lock = Lock()
+        self._cache_cv = Condition(self._cache_lock)
+
+        # Start a thread to load images and wait for the cache to be filled
+        self._producer_thread = Thread(target=self._update_images)
+        self._producer_thread.daemon = True
+        with self._cache_lock:
+            self._producer_thread.start()
+            while np.all(self._cache[-1] == 0):
+                self._cache_cv.wait()
+
+    def _get_batch_memory(self, N):
+        if not hasattr(self, "_batch_xa") or len(self._batch_xa) < N:
+            self._batch_xa = np.zeros((N, 224, 224, 3), dtype=np.float32)
+            self._batch_xp = np.zeros_like(self._batch_xa)
+            self._batch_xn = np.zeros_like(self._batch_xa)
+
+        return self._batch_xa[:N], self._batch_xp[:N], self._batch_xn[:N]
+
+    def _train_data(self, idxs=slice(None)):
+        N = len(self._idxs[idxs])
+        y = np.ones((N, 1), dtype=np.float32)*self._alpha
+        xa, xp, xn = self._get_batch_memory(N)
+        samples = np.random.choice(len(self._cache), N)
+
+        with self._cache_lock:
+            xa[:] = self._cache[samples, 0]
+            xp[:] = self._cache[samples, 1]
+            xn[:] = self._cache[samples, 2]
+
+        return [xa, xp, xn], y
+
+    def _train_size(self):
+        return self._n_images.sum()
+
+    def _test_data(self, idxs=slice(None)):
+        return [np.random.rand(1, 224, 224, 3)]*3, np.zeros((1, 1))
+
+    def _test_size(self):
+        return 1
+
+    @property
+    def shape(self):
+        return [(224, 224, 3)]*3
+
+    @property
+    def output_size(self):
+        return self._embedding
+
+    def _update_images(self):
+        try:
+            with self._cache_lock:
+                for i in range(len(self._cache)):
+                    triplet = self._read_random_triplet()
+                    self._cache[i, 0] = triplet[0]
+                    self._cache[i, 1] = triplet[1]
+                    self._cache[i, 2] = triplet[2]
+                self._cache_cv.notifyAll()
+
+            while True:
+                triplet = self._read_random_triplet()
+                i = np.random.choice(len(self._cache))
+                with self._cache_lock:
+                    self._cache[i, 0] = triplet[0]
+                    self._cache[i, 1] = triplet[1]
+                    self._cache[i, 2] = triplet[2]
+        except:
+            sys.stderr.write("Producer thread tear down by exception\n")
+
+    def _read_random_triplet(self):
+        pos = np.random.choice(len(self._train))
+        neg = np.random.choice(len(self._train))
+        if pos == neg:
+            return self._read_random_triplet()
+
+        anchor_image, pos_image = np.random.choice(self._n_images[pos], 2)
+        if anchor_image == pos_image:
+            return self._read_random_triplet()
+
+        neg_image = np.random.choice(self._n_images[neg])
+
+        # Now we have our triplet
+        return (
+            self._read_image(self._train[pos], anchor_image),
+            self._read_image(self._train[pos], pos_image),
+            self._read_image(self._train[neg], neg_image)
+        )
+
+    def _read_image(self, person, image):
+        image_path = path.join(
+            self._basepath,
+            person,
+            "{:03d}.jpg".format(image+1)
+        )
+        img = pil_image.open(image_path).convert("RGB")
+        img = img.resize((224, 224), pil_image.BILINEAR)
+
+        return preprocess_input(np.array(img, dtype=np.float32))

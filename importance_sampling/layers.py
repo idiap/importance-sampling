@@ -320,3 +320,42 @@ class Bias(Layer):
         assert not isinstance(x, list)
 
         return x + self.bias
+
+
+class TripletLossLayer(Layer):
+    """A bit of an unorthodox layer that implements the triplet loss with L2
+    normalization.
+
+    It receives 1 vector which is the concatenation of the three
+    representations and performs the following operations.
+    x = concat(x_a, x_p, x_n)
+    N = x.shape[1]/3
+    return ||x[:N] - x[2*N:]||_2^2 - ||x[:N] - x[N:2*N]||_2^2
+    """
+    def __init__(self, **kwargs):
+        super(TripletLossLayer, self).__init__(**kwargs)
+
+    def build(self, input_shape):
+        assert not isinstance(input_shape, list)
+        self.N = input_shape[1] // 3
+        self.built = True
+
+    def compute_output_shape(self, input_shape):
+        assert not isinstance(input_shape, list)
+        return (input_shape[0], 1)
+
+    def call(self, x):
+        N = self.N
+
+        xa = x[:, :N]
+        xp = x[:, N:2*N]
+        xn = x[:, 2*N:]
+
+        xa = xa / K.sqrt(K.sum(xa**2, axis=1, keepdims=True))
+        xp = xp / K.sqrt(K.sum(xp**2, axis=1, keepdims=True))
+        xn = xn / K.sqrt(K.sum(xn**2, axis=1, keepdims=True))
+
+        dn = K.sum(K.square(xa - xn), axis=1, keepdims=True)
+        dp = K.sum(K.square(xa - xp), axis=1, keepdims=True)
+
+        return dn - dp

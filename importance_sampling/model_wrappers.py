@@ -37,8 +37,11 @@ class MetricLayer(Layer):
 
     def build(self, input_shape):
         # Special care for accuracy because keras treats it specially
-        if "accuracy" in self.metric_func:
-            self.metric_func = self._generic_accuracy
+        try:
+            if "accuracy" in self.metric_func:
+                self.metric_func = self._generic_accuracy
+        except TypeError:
+            pass # metric_func is not a string
         self.metric_func = compose(K.expand_dims, get_metric(self.metric_func))
 
         super(MetricLayer, self).build(input_shape)

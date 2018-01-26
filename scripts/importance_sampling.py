@@ -24,7 +24,7 @@ from keras.utils import plot_model
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
     CanevetICML2016, MNIST, OntheflyAugmentedImages, PennTreeBank, \
-    ImageNetDownsampled, TIMIT, ZCAWhitening, MIT67
+    ImageNetDownsampled, TIMIT, ZCAWhitening, MIT67, CASIAWebFace
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
 from importance_sampling.model_wrappers import OracleWrapper
@@ -201,6 +201,12 @@ def load_dataset(dataset, hyperparams):
         "mit-67": partial(
             MIT67,
             hyperparams.get("mit67", os.getenv("MIT67"))
+        ),
+        "casia": partial(
+            CASIAWebFace,
+            hyperparams.get("casia", os.getenv("CASIA")),
+            alpha=hyperparams.get("triplet_alpha", 0.2),
+            embedding=hyperparams.get("triplet_embedding", 128)
         )
     }
 
@@ -501,7 +507,9 @@ def main(argv):
             "small_nn", "small_cnn", "cnn", "elu_cnn", "lstm_lm", "lstm_lm2",
             "lstm_lm3", "small_cnn_sq", "wide_resnet_16_4", "wide_resnet_28_10",
             "wide_resnet_28_2", "wide_resnet_16_4_dropout",
-            "wide_resnet_28_10_dropout", "lstm_timit", "pretrained_resnet50"
+            "wide_resnet_28_10_dropout", "lstm_timit", "pretrained_resnet50",
+            "triplet_pre_densenet121", "pretrained_densenet121",
+            "triplet_pre_resnet50"
         ],
         help="Choose the NN model to build"
     )
@@ -528,7 +536,7 @@ def main(argv):
             "cifar10", "cifar100", "cifar10-augmented", "cifar100-augmented",
             "ptb", "cifar10-whitened-augmented", "imagenet-32x32",
             "imagenet-64x64", "timit", "cifar100-whitened-augmented",
-            "mit-67"
+            "mit-67", "casia"
         ],
         help="Choose the dataset to train on"
     )
