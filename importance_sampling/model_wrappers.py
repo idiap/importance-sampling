@@ -231,7 +231,8 @@ class OracleWrapper(ModelWrapper):
 
         # Create a loss layer and a score layer
         loss_tensor = LossLayer(loss)([y_true, model.output])
-        last_layer = -2 if isinstance(model.layers[-1], Activation) else -1
+        skip_one = not bool(model.layers[-1].trainable_weights)
+        last_layer = -2 if skip_one else -1
         score_tensor = _get_scoring_layer(
             score,
             y_true,
