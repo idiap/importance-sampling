@@ -4,10 +4,10 @@
 #
 
 from keras import backend as K
-from keras.applications import ResNet50, DenseNet121
 from keras.layers import    \
     Activation,             \
     AveragePooling2D,       \
+    BatchNormalization,     \
     Convolution2D,          \
     Dense,                  \
     Dropout,                \
@@ -31,6 +31,7 @@ from .layers import       \
     Bias,                 \
     LayerNormalization,   \
     TripletLossLayer
+from .pretrained import ResNet50, DenseNet121
 
 
 def build_small_nn(input_shape, output_size):
@@ -385,7 +386,7 @@ def wide_resnet(L, k, drop_rate=0.0):
         def block(channels, k, n, strides):
             def inner(x):
                 for i in range(n):
-                    x2 = conv(channels*k, strides if i==0 else 1)(x)
+                    x2 = conv(channels*k, strides if i == 0 else 1)(x)
                     x = add([resize(x, K.int_shape(x2)), x2])
                 return x
             return inner
@@ -394,7 +395,7 @@ def wide_resnet(L, k, drop_rate=0.0):
         n = (L-4)/6
 
         group0 = Convolution2D(16, 3, padding="same", use_bias=False,
-                                      kernel_regularizer=l2(5e-4))
+                               kernel_regularizer=l2(5e-4))
         group1 = block(16, k, n, 1)
         group2 = block(32, k, n, 2)
         group3 = block(64, k, n, 2)
@@ -423,30 +424,17 @@ def wide_resnet(L, k, drop_rate=0.0):
     return wide_resnet_impl
 
 
-def pretrained(Net, weights="imagenet", flatten=False, train_bn=False):
+def pretrained(Net, weights="imagenet"):
     def pretrained_impl(input_shape, output_size):
-        net = Net(weights=weights, include_top=False, input_shape=input_shape)
-        x = net.output
-        if flatten:
-            x = Flatten()(x)
-        else:
-            x = GlobalAveragePooling2D()(x)
-        x = Dense(output_size, name="fc"+str(output_size))(x)
-        y = Activation("softmax")(x)
-
-        model = Model(net.input, y, name=net.name)
-        if not train_bn:
-            for l in model.layers:
-                if isinstance(l, BatchRenormalization):
-                    l.trainable = False
-
-        model.compile(
+        net = Net(weights=weights, input_shape=input_shape,
+                  output_size=output_size)
+        net.compile(
             loss="categorical_crossentropy",
             optimizer="adam",
             metrics=["accuracy"]
         )
 
-        return model
+        return net
 
     return pretrained_impl
 
@@ -494,11 +482,9 @@ def get(name):
         "wide_resnet_28_2": wide_resnet(28, 2),
         "wide_resnet_28_10": wide_resnet(28, 10),
         "wide_resnet_28_10_dropout": wide_resnet(28, 10, 0.3),
-        "pretrained_resnet50": pretrained(ResNet50, flatten=True),
-        "triplet_pre_resnet50": triplet(pretrained(ResNet50, flatten=False)),
-        "pretrained_densenet121": pretrained(DenseNet121, flatten=True),
-        "triplet_pre_densenet121": triplet(
-            pretrained(DenseNet121, flatten=True)
-        )
+        "pretrained_resnet50": pretrained(ResNet50),
+        "triplet_pre_resnet50": triplet(pretrained(ResNet50)),
+        "pretrained_densenet121": pretrained(DenseNet121),
+        "triplet_pre_densenet121": triplet(pretrained(DenseNet121))
     }
     return models[name]
