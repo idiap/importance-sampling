@@ -539,6 +539,52 @@ class ExponentialOpportunitySampler(SamplerDecorator):
         super(ExponentialOpportunitySampler, self).update(idxs, scores)
 
 
+class TotalVariationSampler(SamplerDecorator):
+    """Sample from the decorated sampler if the TV of the scores with the
+    uniform distribution is larger than a given value.
+
+    Arguments
+    ---------
+        sampler: BaseSampler
+                 The sampler to be decorated
+        tv_th: float
+               Sample from 'sampler' when the moving average of the tv is
+               larger than tv_th
+    """
+    def __init__(self, sampler, tv_th=0.5):
+        self._tv_th = tv_th
+        self._tv = 0.0
+        self._update_tv = True
+        self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
+        super(TotalVariationSampler, self).__init__(sampler)
+
+    def _get_samples_with_scores(self, batch_size):
+        if self._tv > self._tv_th:
+            idxs, scores, xy = \
+                self.sampler._get_samples_with_scores(batch_size)
+            new_tv = 0.5 * np.abs(1.0/len(scores) - scores/scores.sum()).sum()
+            self._tv = 0.9 * self._tv + 0.1 * new_tv
+            self._update_tv = False
+        else:
+            idxs, scores, xy = \
+                self.uniform._get_samples_with_scores(batch_size)
+            if scores is None:
+                scores = np.ones(len(idxs))
+            self._update_tv = True
+
+        return (
+            idxs,
+            scores,
+            xy
+        )
+
+    def update(self, idxs, scores):
+        if self._update_tv:
+            new_tv = 0.5 * np.abs(1.0/len(scores) - scores/scores.sum()).sum()
+            self._tv = 0.9 * self._tv + 0.1 * new_tv
+        super(TotalVariationSampler, self).update(idxs, scores)
+
+
 class HistorySampler(ModelSampler):
     """HistorySampler uses the history of the loss to perform importance
     sampling.

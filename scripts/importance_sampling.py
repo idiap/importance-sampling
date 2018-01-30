@@ -32,7 +32,8 @@ from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
     PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler, \
-    WarmupSampler, CacheSampler, ExponentialOpportunitySampler
+    WarmupSampler, CacheSampler, ExponentialOpportunitySampler, \
+    TotalVariationSampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -381,6 +382,13 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
                 partial(
                     ExponentialOpportunitySampler,
                     lambda_th=hyperparams.get("exp_th", 2.0)
+                ),
+                samplers[sampler]
+            )
+            samplers["tv-"+sampler] = compose(
+                partial(
+                    TotalVariationSampler,
+                    tv_th=hyperparams.get("tv_th", 0.5)
                 ),
                 samplers[sampler]
             )
