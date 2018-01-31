@@ -32,8 +32,8 @@ from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
     PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler, \
-    WarmupSampler, CacheSampler, ExponentialOpportunitySampler, \
-    TotalVariationSampler
+    CacheSampler, ConditionalStartSampler, WarmupCondition, ExpCondition, \
+    TotalVariationCondition, VarianceReductionCondition
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -373,22 +373,33 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
         if "model" in sampler or "lstm" in sampler:
             samplers["warmup-"+sampler] = compose(
                 partial(
-                    WarmupSampler,
-                    warmup=hyperparams.get("warmup", 100)
+                    ConditionalStartSampler,
+                    ___,
+                    WarmupCondition(hyperparams.get("warmup", 100))
                 ),
                 samplers[sampler]
             )
             samplers["exp-"+sampler] = compose(
                 partial(
-                    ExponentialOpportunitySampler,
-                    lambda_th=hyperparams.get("exp_th", 2.0)
+                    ConditionalStartSampler,
+                    ___,
+                    ExpCondition(hyperparams.get("exp_th", 2.0))
                 ),
                 samplers[sampler]
             )
             samplers["tv-"+sampler] = compose(
                 partial(
-                    TotalVariationSampler,
-                    tv_th=hyperparams.get("tv_th", 0.5)
+                    ConditionalStartSampler,
+                    ___,
+                    TotalVariationCondition(hyperparams.get("tv_th", 0.5))
+                ),
+                samplers[sampler]
+            )
+            samplers["vr-"+sampler] = compose(
+                partial(
+                    ConditionalStartSampler,
+                    ___,
+                    VarianceReductionCondition(hyperparams.get("vr_th", 0.5))
                 ),
                 samplers[sampler]
             )

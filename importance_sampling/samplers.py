@@ -464,68 +464,35 @@ class PowerSmoothingSampler(SamplerDecorator):
         )
 
 
-class WarmupSampler(SamplerDecorator):
-    """Warmup using uniform sampling.
+class ConditionalStartSampler(SamplerDecorator):
+    """ConditionalStartSampler samples uniformly untill a condition is met.
+
+    It is an abstract class meant to be extended.
 
     Arguments
     ---------
         sampler: BaseSampler
                  The sampler to be decorated
-        warmup: int
-                How many batches to extract using uniform sampling.
+        condition: Condition
+                   Decide if we should start importance sampling or not
     """
-    def __init__(self, sampler, warmup=100):
-        self.seen = 0
-        self.warmup = warmup
+    def __init__(self, sampler, condition):
+        # create a uniform sampler to sample from when the condition is not met
         self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
-        super(WarmupSampler, self).__init__(sampler)
+        self.condition = condition
+
+        super(ConditionalStartSampler, self).__init__(sampler)
 
     def _get_samples_with_scores(self, batch_size):
-        sampler = self.uniform if self.seen < self.warmup else self.sampler
-        self.seen += 1
-
-        idxs, scores, xy = sampler._get_samples_with_scores(batch_size)
-        if scores is None:
-            scores = np.ones(len(idxs))
-
-        return (
-            idxs,
-            scores,
-            xy
-        )
-
-
-class ExponentialOpportunitySampler(SamplerDecorator):
-    """Compute the MLE estimate of an exponential distribution generating the
-    scores and sample only if lambda is larger than x.
-
-    Arguments
-    ---------
-        sampler: BaseSampler
-                 The sampler to be decorated
-        lambda_th: float
-                   The threshold of the lambda parameter after which we do
-                   importance sampling
-    """
-    def __init__(self, sampler, lambda_th=2.0):
-        self._lambda_th = lambda_th
-        self._lambda = 0.0
-        self._update_lambda = True
-        self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
-        super(ExponentialOpportunitySampler, self).__init__(sampler)
-
-    def _get_samples_with_scores(self, batch_size):
-        if self._lambda > self._lambda_th:
+        if self.condition.satisfied:
             idxs, scores, xy = \
                 self.sampler._get_samples_with_scores(batch_size)
-            self._lambda = 0.9 * self._lambda + 0.1 / scores.mean()
-            self._update_lambda = False
+            self.condition.update(scores)
         else:
             idxs, scores, xy = \
                 self.uniform._get_samples_with_scores(batch_size)
             if scores is None:
                 scores = np.ones(len(idxs))
-            self._update_lambda = True
 
         return (
             idxs,
@@ -534,55 +501,151 @@ class ExponentialOpportunitySampler(SamplerDecorator):
         )
 
     def update(self, idxs, scores):
-        if self._update_lambda:
-            self._lambda = 0.9 * self._lambda + 0.1 / scores.mean()
-        super(ExponentialOpportunitySampler, self).update(idxs, scores)
+        if not self.condition.previously_satisfied:
+            self.condition.update(scores)
 
 
-class TotalVariationSampler(SamplerDecorator):
+class Condition(object):
+    """An interface for use with the ConditionalStartSampler."""
+    @property
+    def satisfied(self):
+        raise NotImplementedError()
+
+    @property
+    def previously_satisfied(self):
+        pass  # not necessary
+
+    def update(self, scores):
+        pass  # not necessary
+
+
+class WarmupCondition(Condition):
+    """Wait 'warmup' iterations before using importance sampling.
+
+    Arguments
+    ---------
+        warmup: int
+                The number of iterations to wait before starting importance
+                sampling
+    """
+    def __init__(self, warmup=100):
+        self._warmup = warmup
+        self._iters = 0
+
+    @property
+    def satisfied(self):
+        return self._iters > self._warmup
+
+    def update(self, scores):
+        self._iters += 1
+
+
+class ExpCondition(Condition):
+    """Assume that the scores are created by an exponential distribution and
+    sample only if lamda is larger than x.
+
+    Arguments
+    ---------
+        lambda_th: float
+                   When lambda > lambda_th start importance sampling
+        momentum: float
+                  The momentum to compute the exponential moving average of
+                  lambda
+    """
+    def __init__(self, lambda_th=2.0, momentum=0.9):
+        self._lambda_th = lambda_th
+        self._lambda = 0.0
+        self._previous_lambda = 0.0
+        self._momentum = momentum
+
+    @property
+    def satisfied(self):
+        self._previous_lambda = self._lambda
+        return self._lambda > self._lambda_th
+
+    @property
+    def previously_satisfied(self):
+        return self._previous_lambda > self._lambda_th
+
+    def update(self, scores):
+        self._lambda = (
+            self._momentum * self._lambda +
+            (1-self._momentum) / scores.mean()
+        )
+
+
+class TotalVariationCondition(Condition):
     """Sample from the decorated sampler if the TV of the scores with the
     uniform distribution is larger than a given value.
 
     Arguments
     ---------
-        sampler: BaseSampler
-                 The sampler to be decorated
         tv_th: float
-               Sample from 'sampler' when the moving average of the tv is
-               larger than tv_th
+               When tv > tv_th start importance sampling
+        momentum: float
+                  The momentum to compute the exponential moving average of
+                  tv
     """
-    def __init__(self, sampler, tv_th=0.5):
+    def __init__(self, tv_th=0.5, momentum=0.9):
         self._tv_th = tv_th
         self._tv = 0.0
-        self._update_tv = True
-        self.uniform = UniformSampler(sampler.dataset, sampler.reweighting)
-        super(TotalVariationSampler, self).__init__(sampler)
+        self._previous_tv = 0.0
+        self._momentum = momentum
 
-    def _get_samples_with_scores(self, batch_size):
-        if self._tv > self._tv_th:
-            idxs, scores, xy = \
-                self.sampler._get_samples_with_scores(batch_size)
-            new_tv = 0.5 * np.abs(1.0/len(scores) - scores/scores.sum()).sum()
-            self._tv = 0.9 * self._tv + 0.1 * new_tv
-            self._update_tv = False
-        else:
-            idxs, scores, xy = \
-                self.uniform._get_samples_with_scores(batch_size)
-            if scores is None:
-                scores = np.ones(len(idxs))
-            self._update_tv = True
+    @property
+    def satisfied(self):
+        self._previous_tv = self._tv
+        return self._tv > self._tv_th
 
-        return (
-            idxs,
-            scores,
-            xy
+    @property
+    def previously_satisfied(self):
+        return self._previous_tv > self._tv_th
+
+    def update(self, scores):
+        self._previous_tv = self._tv
+        new_tv = 0.5 * np.abs(scores/scores.sum() - 1.0/len(scores)).sum()
+        self._tv = (
+            self._momentum * self._tv +
+            (1-self._momentum) * new_tv
         )
 
-    def update(self, idxs, scores):
-        if self._update_tv:
-            new_tv = 0.5 * np.abs(1.0/len(scores) - scores/scores.sum()).sum()
-            self._tv = 0.9 * self._tv + 0.1 * new_tv
-        super(TotalVariationSampler, self).update(idxs, scores)
+
+class VarianceReductionCondition(Condition):
+    """Sample with importance sampling when the variance reduction is larger
+    than a threshold.
+
+    Arguments
+    ---------
+        vr_th: float
+               When vr > vr_th start importance sampling
+        momentum: float
+                  The momentum to compute the exponential moving average of
+                  vr
+    """
+    def __init__(self, vr_th=0.5, momentum=0.9):
+        self._vr_th = vr_th
+        self._vr = 0.0
+        self._previous_vr = 0.0
+        self._momentum = momentum
+
+    @property
+    def satisfied(self):
+        self._previous_vr = self._vr
+        return self._vr > self._vr_th
+
+    @property
+    def previously_satisfied(self):
+        return self._previous_vr > self._vr_th
+
+    def update(self, scores):
+        g = scores/scores.sum()
+        B = len(scores)
+        u = 1.0/B
+        new_vr = B*((g**2).sum() - u)
+        self._vr = (
+            self._momentum * self._vr +
+            (1-self._momentum) * new_vr
+        )
 
 
 class HistorySampler(ModelSampler):
