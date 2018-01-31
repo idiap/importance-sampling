@@ -946,7 +946,8 @@ class CASIAWebFace(BaseDataset):
                     self._cache[i, 1] = triplet[1]
                     self._cache[i, 2] = triplet[2]
         except:
-            sys.stderr.write("Producer thread tear down by exception\n")
+            if sys is not None:
+                sys.stderr.write("Producer thread tear down by exception\n")
 
     def _read_random_triplet(self):
         pos = np.random.choice(len(self._train))
