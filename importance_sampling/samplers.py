@@ -612,7 +612,7 @@ class TotalVariationCondition(Condition):
 
 class VarianceReductionCondition(Condition):
     """Sample with importance sampling when the variance reduction is larger
-    than a threshold.
+    than a threshold. The variance reduction units are in batch size increment.
 
     Arguments
     ---------
@@ -622,7 +622,7 @@ class VarianceReductionCondition(Condition):
                   The momentum to compute the exponential moving average of
                   vr
     """
-    def __init__(self, vr_th=0.5, momentum=0.9):
+    def __init__(self, vr_th=1.2, momentum=0.9):
         self._vr_th = vr_th
         self._vr = 0.0
         self._previous_vr = 0.0
@@ -638,10 +638,13 @@ class VarianceReductionCondition(Condition):
         return self._previous_vr > self._vr_th
 
     def update(self, scores):
-        g = scores/scores.sum()
-        B = len(scores)
-        u = 1.0/B
-        new_vr = B*((g**2).sum() - u)
+        u = 1.0/len(scores)
+        S = scores.sum()
+        if S == 0:
+            g = np.array(u)
+        else:
+            g = scores/S
+        new_vr = 1.0 / np.sqrt(1 - ((g-u)**2).sum()/(g**2).sum())
         self._vr = (
             self._momentum * self._vr +
             (1-self._momentum) * new_vr
