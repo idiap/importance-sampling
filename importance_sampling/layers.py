@@ -222,11 +222,13 @@ class StatsBatchNorm(Layer):
         momentum: Momentum for the moving average
         epsilon: Added to variance to avoid divide by 0
     """
-    def __init__(self, momentum=0.99, epsilon=1e-3, **kwargs):
+    def __init__(self, momentum=0.99, epsilon=1e-3, update_stats=False,
+                 **kwargs):
         super(StatsBatchNorm, self).__init__(**kwargs)
 
         self.momentum = momentum
         self.epsilon = epsilon
+        self.update_stats = update_stats
 
     def build(self, input_shape):
         dim = input_shape[-1]
@@ -285,11 +287,12 @@ class StatsBatchNorm(Layer):
         )
 
         # Compute and update the minibatch statistics
-        mean, var = self._moments(x)
-        self.add_update([
-            K.moving_average_update(self.moving_mean, mean, self.momentum),
-            K.moving_average_update(self.moving_variance, var, self.momentum)
-        ], x)
+        if self.update_stats:
+            mean, var = self._moments(x)
+            self.add_update([
+                K.moving_average_update(self.moving_mean, mean, self.momentum),
+                K.moving_average_update(self.moving_variance, var, self.momentum)
+            ], x)
 
         return xnorm
 
