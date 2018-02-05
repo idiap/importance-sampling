@@ -1,0 +1,59 @@
+
+from math import ceil
+
+import h5py
+from keras import backend as K
+from keras.utils.data_utils import Sequence
+import numpy as np
+
+
+def weights_from_hdf5(f):
+    """Extract all the weights from an h5py File or Group"""
+    if "weight_names" in f.attrs:
+        for n in f.attrs["weight_names"]:
+            yield n, f[n]
+    else:
+        for k in f.keys():
+            for n, w in weights_from_hdf5(f[k]):
+                yield n, w
+
+
+def load_weights_by_name(f, layers):
+    """Load the weights by name from the h5py file to the model"""
+    # If f is not an h5py thing try to open it
+    if not isinstance(f, (h5py.File, h5py.Group)):
+        with h5py.File(f, "r") as h5f:
+            return load_weights_by_name(h5f, layers)
+
+    # Extract all the weights from the layers/model
+    if not isinstance(layers, list):
+        layers = layers.layers
+    weights = reduce(
+        lambda a, x: a + [(w.name, w) for w in x.weights],
+        layers,
+        []
+    )
+
+    # Loop through all the possible layer weights in the file and make a list
+    # of updates
+    updates = []
+    for name, weight in weights_from_hdf5(f):
+        if name in weights:
+            updates.append((weights[name], weight))
+
+    K.batch_set_value(updates)
+
+
+class DatasetSequence(Sequence):
+    """Implement the Keras Sequence interface from a BaseDataset interface."""
+    def __init__(self, dataset, train=True, part=slice(None), batch_size=32):
+        self._data = dataset.train_data if train else dataset.test_data
+        self._idxs = np.arange(len(self._data))[part]
+        self._batch_size = batch_size
+
+    def __len__(self):
+        return int(ceil(float(len(self._idxs)) / self._batch_size))
+
+    def __getitem__(self, idx):
+        batch = self._idxs[self._batch_size*idx:self._batch_size*(idx+1)]
+        return self._data[batch]

@@ -3,6 +3,7 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
+from bisect import bisect_left
 from collections import OrderedDict
 from functools import partial
 import gzip
@@ -978,3 +979,142 @@ class CASIAWebFace(BaseDataset):
         img = img.resize((224, 224), pil_image.BILINEAR)
 
         return preprocess_input(np.array(img, dtype=np.float32))
+
+
+class LFW(BaseDataset):
+    """BaseDataset interface to Labeled Faces in the Wild dataset.
+
+    The dataset provides both images and indexes for the lfw folds.
+
+    Arguments
+    ---------
+        basepath: The path to the dataset
+        fold: [1,10] or None
+              Choose a fold to evaluate on or all the images
+        idxs: bool
+              Whether to load images or just indexes for the fold
+    """
+    def __init__(self, basepath, fold=1, idxs=False):
+        self._basepath = basepath
+        self._fold = fold
+        self._idxs = idxs
+        self._collect_images()
+        self._collect_pairs()
+
+    def _image_path(self, name, img):
+        return path.join(name, "{}_{:04d}".format(name, img))
+
+    def _get_person(self, image):
+        return bisect_left(
+            self._names,
+            image.split(os.sep)[0]
+        )
+
+    def _get_idx(self, name, img):
+        return bisect_left(self._images, self._image_path(name, img))
+
+    def _collect_images(self):
+        """Collect all the image paths into a sorted list."""
+        image_path = path.join(self._basepath, "all_images")
+        self._names = np.array(sorted(set([
+            name for name in os.listdir(image_path)
+            if path.isdir(path.join(image_path, name))
+        ])))
+        self._images = np.array(sorted([
+            path.join(name, img)
+            for name in self._names
+            for img in os.listdir(path.join(image_path, name))
+            if img.endswith(".jpg")
+        ]))
+
+    def _collect_pairs(self):
+        if self._fold is None:
+            return
+
+        with open(path.join(self._basepath, "view2", "pairs.txt")) as f:
+            folds, n = map(int, next(f).split())
+            assert 1 <= self._fold <= folds
+            idxs = np.zeros((n*2*folds, 2), dtype=np.int32)
+            matches = np.zeros((n*2*folds, 1), dtype=np.float32)
+            for i, l in enumerate(f):
+                parts = l.split()
+                matches[i] = float(len(parts) == 3)
+                if matches[i]:
+                    idxs[i] = [
+                        self._get_idx(parts[0], int(parts[1])),
+                        self._get_idx(parts[0], int(parts[2]))
+                    ]
+                else:
+                    idxs[i] = [
+                        self._get_idx(parts[0], int(parts[1])),
+                        self._get_idx(parts[2], int(parts[3]))
+                    ]
+            idxs_2 = np.arange(len(idxs))
+            train = np.logical_or(
+                idxs_2 < 2*n*(self._fold - 1),
+                idxs_2 >= 2*n*self._fold
+            )
+            test = np.logical_and(
+                idxs_2 >= 2*n*(self._fold - 1),
+                idxs_2 < 2*n*self._fold
+            )
+            self._idxs_train = idxs[train]
+            self._idxs_test = idxs[test]
+            self._y_train = matches[train]
+            self._y_test = matches[test]
+
+    def _read_image(self, image):
+        full_img_path = path.join(self._basepath, "all_images", image)
+        img = pil_image.open(full_img_path).convert("RGB")
+        img = img.resize((224, 224), pil_image.BILINEAR)
+
+        return preprocess_input(np.array(img, dtype=np.float32))
+
+    def _get_data(self, pairs):
+        if self._idxs:
+            return pairs
+        else:
+            x1 = np.stack(map(self._read_image, self._images[pairs[:, 0]]))
+            x2 = np.stack(map(self._read_image, self._images[pairs[:, 1]]))
+            return [x1, x2]
+
+    def _train_data(self, idxs=slice(None)):
+        if self._fold is None:
+            images = self._images[idxs]
+            x = np.stack(map(self._read_image, images))
+            y = np.array(map(self._get_person, images))
+        else:
+            x = self._get_data(self._idxs_train[idxs])
+            y = self._y_train[idxs]
+
+        return x, y
+
+    def _train_size(self):
+        if self._fold is None:
+            return len(self._images)
+        return len(self._idxs_train)
+
+    def _test_data(self, idxs=slice(None)):
+        if self._fold is None:
+            raise NotImplementedError()
+        x = self._get_data(self._idxs_test[idxs])
+        y = self._y_test[idxs]
+
+        return x, y
+
+    def _test_size(self):
+        return 0 if self._fold is None else len(self._idxs_test)
+
+    @property
+    def shape(self):
+        if self._fold is None:
+            return (224, 224, 3)
+        else:
+            if self._idxs:
+                return (2,)
+            else:
+                return [(224, 224, 3)]*2
+
+    @property
+    def output_size(self):
+        return 1
