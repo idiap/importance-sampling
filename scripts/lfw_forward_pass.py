@@ -29,8 +29,9 @@ def batch_gen(dataset, part, batch_size):
 
 
 def main(argv):
-    parser = argparse.ArgumentParser(("Compute representations for the lfw "
-                                      "dataset"))
+    parser = argparse.ArgumentParser(
+        description="Compute representations for the lfw dataset"
+    )
 
     parser.add_argument(
         "model",
