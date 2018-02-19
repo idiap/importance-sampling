@@ -1,3 +1,8 @@
+#
+# Copyright (c) 2017 Idiap Research Institute, http://www.idiap.ch/
+# Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
+#
+
 """Replace the models provided by the Keras applications module"""
 
 from keras.applications.resnet50 import WEIGHTS_PATH as RESNET50_WEIGHTS_PATH
