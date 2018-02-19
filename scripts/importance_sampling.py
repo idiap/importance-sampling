@@ -18,13 +18,14 @@ import time
 from blinker import signal
 import numpy as np
 from keras import backend as K
-from keras.optimizers import Adam, SGD
+from keras.optimizers import Adam, SGD, RMSprop
 from keras.utils import plot_model
 
 from importance_sampling import models
 from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
     CanevetICML2016, MNIST, OntheflyAugmentedImages, PennTreeBank, \
-    ImageNetDownsampled, TIMIT, ZCAWhitening, MIT67, CASIAWebFace
+    ImageNetDownsampled, TIMIT, ZCAWhitening, MIT67, CASIAWebFace, \
+    CASIAWebFace2, PixelByPixelMNIST
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
 from importance_sampling.model_wrappers import OracleWrapper
@@ -208,7 +209,12 @@ def load_dataset(dataset, hyperparams):
             hyperparams.get("casia", os.getenv("CASIA")),
             alpha=hyperparams.get("triplet_alpha", 0.2),
             embedding=hyperparams.get("triplet_embedding", 128)
-        )
+        ),
+        "casia-cls": partial(
+            CASIAWebFace2,
+            hyperparams.get("casia", os.getenv("CASIA")),
+        ),
+        "pixel-mnist": PixelByPixelMNIST
     }
 
     return datasets[dataset]()
@@ -259,9 +265,18 @@ def build_model(model, wrapper, dataset, hyperparams, reweighting):
         return {
             "sgd": SGD(
                 lr=hyperparams.get("lr", 0.001),
-                momentum=hyperparams.get("momentum", 0.0)
+                momentum=hyperparams.get("momentum", 0.0),
+                clipnorm=hyperparams.get("clipnorm", None)
             ),
-            "adam": Adam(lr=hyperparams.get("lr", 0.001))
+            "adam": Adam(
+                lr=hyperparams.get("lr", 0.001),
+                clipnorm=hyperparams.get("clipnorm", None)
+            ),
+            "rmsprop": RMSprop(
+                lr=hyperparams.get("lr", 0.001),
+                decay=hyperparams.get("lr_decay", 0.0),
+                clipnorm=hyperparams.get("clipnorm", None)
+            )
         }[opt]
 
     model = models.get(model)(dataset.shape, dataset.output_size)
@@ -528,7 +543,7 @@ def main(argv):
             "wide_resnet_28_2", "wide_resnet_16_4_dropout",
             "wide_resnet_28_10_dropout", "lstm_timit", "pretrained_resnet50",
             "triplet_pre_densenet121", "pretrained_densenet121",
-            "triplet_pre_resnet50"
+            "triplet_pre_resnet50", "face_pre_resnet50", "lstm_mnist"
         ],
         help="Choose the NN model to build"
     )
@@ -555,7 +570,7 @@ def main(argv):
             "cifar10", "cifar100", "cifar10-augmented", "cifar100-augmented",
             "ptb", "cifar10-whitened-augmented", "imagenet-32x32",
             "imagenet-64x64", "timit", "cifar100-whitened-augmented",
-            "mit-67", "casia"
+            "mit-67", "casia", "casia-cls", "pixel-mnist"
         ],
         help="Choose the dataset to train on"
     )
