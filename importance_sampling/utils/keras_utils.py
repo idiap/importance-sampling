@@ -18,6 +18,13 @@ def weights_from_hdf5(f):
                 yield n, w
 
 
+def possible_weight_names(name, n=10):
+    yield name
+    parts = name.split("/")
+    for i in range(1, n+1):
+        yield "{}_{}/{}".format(parts[0], i, parts[1])
+
+
 def load_weights_by_name(f, layers):
     """Load the weights by name from the h5py file to the model"""
     # If f is not an h5py thing try to open it
@@ -28,20 +35,25 @@ def load_weights_by_name(f, layers):
     # Extract all the weights from the layers/model
     if not isinstance(layers, list):
         layers = layers.layers
-    weights = reduce(
+    weights = dict(reduce(
         lambda a, x: a + [(w.name, w) for w in x.weights],
         layers,
         []
-    )
+    ))
 
     # Loop through all the possible layer weights in the file and make a list
     # of updates
     updates = []
+    updated = []
     for name, weight in weights_from_hdf5(f):
-        if name in weights:
-            updates.append((weights[name], weight))
-
+        for n in possible_weight_names(name):
+            if n in weights:
+                updates.append((weights[n], weight))
+                updated.append(n)
+                break
     K.batch_set_value(updates)
+
+    return updated
 
 
 class DatasetSequence(Sequence):
