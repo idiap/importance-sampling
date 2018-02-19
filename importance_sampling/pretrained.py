@@ -17,7 +17,7 @@ from .layers import StatsBatchNorm
 
 
 def ResNet50(weights="imagenet", input_shape=(224, 224, 3), output_size=1000,
-             norm_layer=StatsBatchNorm):
+             softmax=False, norm_layer=StatsBatchNorm):
     def block(x_in, kernel, filters, strides, stage, block, shortcut=False):
         conv_name = "res" + str(stage) + block + "_branch"
         bn_name = "bn" + str(stage) + block + "_branch"
@@ -68,7 +68,8 @@ def ResNet50(weights="imagenet", input_shape=(224, 224, 3), output_size=1000,
     x = AveragePooling2D((7, 7), name="avg_pool")(x)
     x = Flatten()(x)
     x = Dense(output_size, name="fc"+str(output_size))(x)
-    x = Activation("softmax")(x)
+    if softmax:
+        x = Activation("softmax")(x)
 
     model = Model(x_in, x, name="resnet50")
 

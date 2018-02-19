@@ -16,7 +16,7 @@ from keras.layers import    \
     Flatten,                \
     GlobalAveragePooling2D, \
     Input,                  \
-    LSTM,                   \
+    LSTM, CuDNNLSTM,        \
     MaxPooling2D,           \
     Masking,                \
     TimeDistributed,        \
@@ -32,6 +32,7 @@ from .layers import       \
     LayerNormalization,   \
     TripletLossLayer
 from .pretrained import ResNet50, DenseNet121
+from .utils.functional import partial
 
 
 def build_small_nn(input_shape, output_size):
@@ -341,6 +342,23 @@ def build_lstm_timit(input_shape, output_size):
     return model
 
 
+def build_lstm_mnist(input_shape, output_size):
+    """Build a small LSTM to recognize MNIST digits as permuted sequences"""
+    model = Sequential([
+        CuDNNLSTM(128, input_shape=input_shape),
+        Dense(output_size),
+        Activation("softmax")
+    ])
+
+    model.compile(
+        optimizer="adam",
+        loss="categorical_crossentropy",
+        metrics=["accuracy"]
+    )
+
+    return model
+
+
 def build_small_cnn_squared(input_shape, output_size):
     def squared_categorical_crossent(y_true, y_pred):
         return K.square(K.categorical_crossentropy(y_pred, y_true))
@@ -439,6 +457,25 @@ def pretrained(Net, weights="imagenet"):
     return pretrained_impl
 
 
+def face(modelf, embedding):
+    def face_impl(input_shape, output_size):
+        x = Input(shape=input_shape)
+        e = modelf(input_shape, embedding)(x)
+        y = Dense(output_size)(e)
+        y = Activation("softmax")(y)
+
+        model = Model(x, y)
+        model.compile(
+            "adam",
+            "sparse_categorical_crossentropy",
+            metrics=["accuracy"]
+        )
+
+        return model
+
+    return face_impl
+
+
 def triplet(modelf):
     def triplet_loss(y_true, y_pred):
         return K.relu(y_true - y_pred)
@@ -477,14 +514,16 @@ def get(name):
         "lstm_lm2": build_lstm_lm2,
         "lstm_lm3": build_lstm_lm3,
         "lstm_timit": build_lstm_timit,
+        "lstm_mnist": build_lstm_mnist,
         "wide_resnet_16_4": wide_resnet(16, 4),
         "wide_resnet_16_4_dropout": wide_resnet(16, 4, 0.3),
         "wide_resnet_28_2": wide_resnet(28, 2),
         "wide_resnet_28_10": wide_resnet(28, 10),
         "wide_resnet_28_10_dropout": wide_resnet(28, 10, 0.3),
-        "pretrained_resnet50": pretrained(ResNet50),
+        "pretrained_resnet50": pretrained(partial(ResNet50, softmax=True)),
         "triplet_pre_resnet50": triplet(pretrained(ResNet50)),
         "pretrained_densenet121": pretrained(DenseNet121),
-        "triplet_pre_densenet121": triplet(pretrained(DenseNet121))
+        "triplet_pre_densenet121": triplet(pretrained(DenseNet121)),
+        "face_pre_resnet50": face(pretrained(ResNet50), 128)
     }
     return models[name]
