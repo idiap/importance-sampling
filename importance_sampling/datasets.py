@@ -1165,3 +1165,30 @@ class CASIAWebFace2(BaseDataset):
     @property
     def output_size(self):
         return self._output_size
+
+
+class PixelByPixelMNIST(InMemoryDataset):
+    """Transform MNIST into a sequence classification problem."""
+    def __init__(self, permutation_seed=0):
+        # Load the data
+        (x_train, y_train), (x_test, y_test) = mnist.load_data()
+        dims = np.prod(x_train.shape[1:])
+
+        # Generate the permutation
+        state = np.random.get_state()
+        np.random.seed(permutation_seed)
+        permutation = np.random.permutation(dims)
+        np.random.set_state(state)
+
+        # Permutate, preprocess
+        x_train = x_train.reshape(-1, dims)[:, permutation, np.newaxis]
+        x_test = x_test.reshape(-1, dims)[:, permutation, np.newaxis]
+        x_train = x_train.astype(np.float32) / 255.
+        x_test = x_test.astype(np.float32) / 255.
+
+        super(PixelByPixelMNIST, self).__init__(
+            x_train,
+            y_train,
+            x_test,
+            y_test
+        )
