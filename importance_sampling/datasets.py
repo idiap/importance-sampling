@@ -859,7 +859,7 @@ class CASIAWebFace(BaseDataset):
                     validation == 0
     """
     def __init__(self, basepath, alpha=0.2, embedding=128, validation=5,
-                 cache=1024):
+                 cache=4096):
         # Save the configuration in member variables
         self._alpha = alpha
         self._embedding = embedding
@@ -1118,3 +1118,50 @@ class LFW(BaseDataset):
     @property
     def output_size(self):
         return 1
+
+
+class CASIAWebFace2(BaseDataset):
+    """Provide a classification interface to CASIAWebFace."""
+    def __init__(self, basepath):
+        self._basepath = basepath
+        ids = [x for x in os.listdir(basepath) if "." not in x]
+        self._output_size = len(ids)
+        self._images = [
+            (path.join(basepath, x, img), i) for i, x in enumerate(ids)
+            for img in os.listdir(path.join(basepath, x))
+            if img.endswith("jpg")
+        ]
+        self._idxs = np.arange(len(self._images))
+
+    def _read_image(self, image_path):
+        img = pil_image.open(image_path).convert("RGB")
+        img = img.resize((224, 224), pil_image.BILINEAR)
+
+        return preprocess_input(np.array(img, dtype=np.float32))
+
+    def _train_data(self, idxs=slice(None)):
+        idxs = self._idxs[idxs]
+        y = np.array([self._images[i][1] for i in idxs])[:, np.newaxis]
+        x = np.stack([
+            self._read_image(self._images[i][0])
+            for i in idxs
+        ])
+
+        return x, y
+
+    def _train_size(self):
+        return len(self._images)
+
+    def _test_data(self, idxs=slice(None)):
+        return np.random.rand(1, 224, 224, 3), np.zeors((1, 1))
+
+    def _test_size(self):
+        return 1
+
+    @property
+    def shape(self):
+        return (224, 224, 3)
+
+    @property
+    def output_size(self):
+        return self._output_size
