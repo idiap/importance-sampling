@@ -78,10 +78,12 @@ class TestModelWrappers(unittest.TestCase):
         for get_model in model_factories:
             model, wrapped, x, y = get_model()
 
+            wrapped.set_lr(0.001)
+
             scores = wrapped.score(x, y)
             self.assertTrue(np.all(scores == wrapped.score(x, y)))
 
-            wl, _, sc = wrapped.train_batch(x, y, np.ones(16) / y.shape[1])
+            wl, _, sc = wrapped.train_batch(x, y, np.ones((16, 1)) / y.shape[1])
             self.assertTrue(np.all(wl*y.shape[1] == sc))
 
             l = wrapped.evaluate(x, y)
@@ -97,7 +99,7 @@ class TestModelWrappers(unittest.TestCase):
         with assert_signals(self, "is.score"):
             wrapped.score(x, y)
         with assert_signals(self, "is.training"):
-            wrapped.train_batch(x, y, np.ones(len(x)))
+            wrapped.train_batch(x, y, np.ones((len(x), 1)))
 
     @unittest.skip("Not done yet")
     def test_metrics(self):

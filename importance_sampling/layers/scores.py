@@ -145,3 +145,4 @@ class GradientNormLayer(Layer):
                 for g in grads
             ])
         )
+

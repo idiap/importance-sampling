@@ -28,7 +28,6 @@ from keras.regularizers import l2
 
 from .layers import       \
     BatchRenormalization, \
-    Bias,                 \
     LayerNormalization,   \
     TripletLossLayer
 from .pretrained import ResNet50, DenseNet121
@@ -381,12 +380,10 @@ def wide_resnet(L, k, drop_rate=0.0):
                              kernel_regularizer=l2(5e-4))):
             def inner(x):
                 x = LayerNormalization()(x)
-                x = Bias()(x)
                 x = Activation("relu")(x)
                 x = Convolution2D(channels, 3, strides=strides, **params)(x)
                 x = Dropout(drop_rate)(x) if drop_rate > 0 else x
                 x = LayerNormalization()(x)
-                x = Bias()(x)
                 x = Activation("relu")(x)
                 x = Convolution2D(channels, 3, **params)(x)
                 return x
@@ -425,7 +422,6 @@ def wide_resnet(L, k, drop_rate=0.0):
         x = group3(x)
 
         x = LayerNormalization()(x)
-        x = Bias()(x)
         x = Activation("relu")(x)
         x = GlobalAveragePooling2D()(x)
         x = Dense(output_size, kernel_regularizer=l2(5e-4))(x)
