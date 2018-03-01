@@ -78,6 +78,8 @@ class TestModelWrappers(unittest.TestCase):
         for get_model in model_factories:
             model, wrapped, x, y = get_model()
 
+            wrapped.set_lr(0.001)
+
             scores = wrapped.score(x, y)
             self.assertTrue(np.all(scores == wrapped.score(x, y)))
 

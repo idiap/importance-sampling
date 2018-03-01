@@ -97,11 +97,17 @@ class ModelWrapper(object):
         """
         try:
             K.set_value(
-                self.model.optimizer.lr,
+                self.optimizer.lr,
                 lr
             )
         except AttributeError:
-            raise NotImplementedError()
+            try:
+                K.set_value(
+                    self.model.optimizer.lr,
+                    lr
+                )
+            except AttributeError:
+                raise NotImplementedError()
 
         try:
             K.set_value(
@@ -247,6 +253,7 @@ class OracleWrapper(ModelWrapper):
         evaluate_on_batch = K.function(inputs=inputs, outputs=outputs)
 
         self.model = new_model
+        self.optimizer = optimizer
         self._train_on_batch = train_on_batch
         self._evaluate_on_batch = evaluate_on_batch
 
