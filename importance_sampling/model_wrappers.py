@@ -7,7 +7,8 @@ from functools import partial
 
 from blinker import signal
 from keras import backend as K
-from keras.layers import Activation, Input, Layer, multiply
+from keras.layers import Input, Layer, multiply
+from keras.models import Model
 import numpy as np
 
 from .layers import GradientNormLayer, LossLayer, MetricLayer
@@ -144,9 +145,34 @@ class OracleWrapper(ModelWrapper):
     SCORE = 3
     METRIC0 = 4
 
-    def __init__(self, model, reweighting, score="loss"):
-        self.model = self._augment_model(model, score, reweighting)
+    def __init__(self, model, reweighting, score="loss", layer=None):
         self.reweighting = reweighting
+        self.layer = self._gnorm_layer(model, layer)
+
+        # Augment the model with reweighting, scoring etc
+        # Save the new model and the training functions in member variables
+        self._augment_model(model, score, reweighting)
+
+    def _gnorm_layer(self, model, layer):
+        # If we were given a layer then use it directly
+        if isinstance(layer, Layer):
+            return layer
+
+        # If we were given a layer index extract the layer
+        if isinstance(layer, int):
+            return model.layers[layer]
+
+        try:
+            # Get the last or the previous to last layer depending on wether
+            # the last has trainable weights
+            skip_one = not bool(model.layers[-1].trainable_weights)
+            last_layer = -2 if skip_one else -1
+
+            return model.layers[last_layer]
+        except:
+            # In case of an error then probably we are not using the gnorm
+            # importance
+            return None
 
     def _augment_model(self, model, score, reweighting):
         # Extract some info from the model
@@ -167,14 +193,12 @@ class OracleWrapper(ModelWrapper):
 
         # Create a loss layer and a score layer
         loss_tensor = LossLayer(loss)([y_true, model.output])
-        skip_one = not bool(model.layers[-1].trainable_weights)
-        last_layer = -2 if skip_one else -1
         score_tensor = _get_scoring_layer(
             score,
             y_true,
             model.output,
             loss,
-            model.layers[last_layer],
+            self.layer,
             model
         )
 
@@ -183,6 +207,7 @@ class OracleWrapper(ModelWrapper):
 
         # Create the output
         weighted_loss = multiply([loss_tensor, weights])
+        weighted_loss_mean = K.mean(weighted_loss)
 
         # Create the metric layers
         metrics = model.metrics or []
@@ -191,24 +216,44 @@ class OracleWrapper(ModelWrapper):
             for metric in metrics
         ]
 
-        # Finally build, compile, return
-        new_model = TransparentModel(
+        # Create a model for plotting and providing access to things such as
+        # trainable_weights etc.
+        new_model = Model(
             inputs=_tolist(model.input) + [y_true, pred_score],
-            outputs=[weighted_loss],
-            observed_tensors=[loss_tensor, weighted_loss, score_tensor] + metrics
-        )
-        new_model.compile(
-            optimizer=optimizer,
-            loss=lambda y_true, y_pred: y_pred
+            outputs=[weighted_loss]
         )
 
-        return new_model
+        # Build separate on_batch keras functions for scoring and training
+        updates = optimizer.get_updates(
+            weighted_loss_mean,
+            new_model.trainable_weights
+        )
+        learning_phase = []
+        if weighted_loss._uses_learning_phase:
+            learning_phase.append(K.learning_phase())
+        inputs = _tolist(model.input) + [y_true, pred_score] + learning_phase
+        outputs = [
+            weighted_loss_mean,
+            loss_tensor,
+            weighted_loss,
+            score_tensor
+        ] + metrics
+
+        train_on_batch = K.function(
+            inputs=inputs,
+            outputs=outputs,
+            updates=updates
+        )
+        evaluate_on_batch = K.function(inputs=inputs, outputs=outputs)
+
+        self.model = new_model
+        self._train_on_batch = train_on_batch
+        self._evaluate_on_batch = evaluate_on_batch
 
     def evaluate_batch(self, x, y):
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
-        dummy_target = np.zeros((y.shape[0], 1))
-        inputs = _tolist(x) + [y, dummy_weights]
-        outputs = self.model.test_on_batch(inputs, dummy_target)
+        inputs = _tolist(x) + [y, dummy_weights] + [0]
+        outputs = self._evaluate_on_batch(inputs)
 
         signal("is.evaluate_batch").send(outputs)
 
@@ -216,18 +261,14 @@ class OracleWrapper(ModelWrapper):
 
     def score_batch(self, x, y):
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
-        dummy_target = np.zeros((y.shape[0], 1))
-        inputs = _tolist(x) + [y, dummy_weights]
-        outputs = self.model.test_on_batch(inputs, dummy_target)
+        inputs = _tolist(x) + [y, dummy_weights] + [0]
+        outputs = self._evaluate_on_batch(inputs)
 
         return outputs[self.SCORE].ravel()
 
     def train_batch(self, x, y, w):
-        # create a dummy target to please keras
-        dummy_target = np.zeros((y.shape[0], 1))
-
         # train on a single batch
-        outputs = self.model.train_on_batch(_tolist(x) + [y, w], dummy_target)
+        outputs = self._train_on_batch(_tolist(x) + [y, w])
 
         # Add the outputs in a tuple to send to whoever is listening
         result = (
