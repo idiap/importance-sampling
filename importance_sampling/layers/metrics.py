@@ -3,12 +3,14 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
-from ..utils.functional import compose
+from functools import reduce
 
 from keras import backend as K
 from keras.engine import Layer
 from keras.metrics import categorical_accuracy, binary_accuracy, \
     get as get_metric, sparse_categorical_accuracy
+
+from ..utils.functional import compose
 
 
 class MetricLayer(Layer):

@@ -3,6 +3,7 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
+from functools import reduce
 from math import ceil
 
 import h5py
