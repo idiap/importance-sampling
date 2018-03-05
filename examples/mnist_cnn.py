@@ -8,8 +8,9 @@ from __future__ import print_function
 import keras
 from keras.datasets import mnist
 from keras.models import Sequential
-from keras.layers import Dense, Dropout, Flatten
+from keras.layers import Activation, Dense, Flatten
 from keras.layers import Conv2D, MaxPooling2D
+from keras.regularizers import l2
 from keras import backend as K
 
 from importance_sampling.training import ImportanceTraining
@@ -49,14 +50,14 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 model = Sequential()
 model.add(Conv2D(32, kernel_size=(3, 3),
                  activation='relu',
+                 kernel_regularizer=l2(1e-5),
                  input_shape=input_shape))
-model.add(Conv2D(64, (3, 3), activation='relu'))
+model.add(Conv2D(64, (3, 3), activation='relu', kernel_regularizer=l2(1e-5)))
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
 model.add(Flatten())
-model.add(Dense(128, activation='relu'))
-model.add(Dropout(0.5))
-model.add(Dense(num_classes, activation='softmax'))
+model.add(Dense(128, activation='relu', kernel_regularizer=l2(1e-5)))
+model.add(Dense(num_classes, kernel_regularizer=l2(1e-5)))
+model.add(Activation('softmax'))
 
 model.compile(loss=keras.losses.categorical_crossentropy,
               optimizer=keras.optimizers.Adadelta(),

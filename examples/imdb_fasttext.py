@@ -15,6 +15,7 @@ import numpy as np
 
 from keras.preprocessing import sequence
 from keras.models import Sequential
+from keras.layers import Activation
 from keras.layers import Dense
 from keras.layers import Embedding
 from keras.layers import GlobalAveragePooling1D
@@ -125,13 +126,14 @@ model.add(Embedding(max_features,
 model.add(GlobalAveragePooling1D())
 
 # We project onto a single unit output layer, and squash it with a sigmoid:
-model.add(Dense(1, activation='sigmoid'))
+model.add(Dense(1))
+model.add(Activation("sigmoid"))
 
 model.compile(loss='binary_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
 
-ImportanceTraining(model).fit(x_train, y_train,
+ImportanceTraining(model, presample=2).fit(x_train, y_train,
           batch_size=batch_size,
           epochs=epochs,
           validation_data=(x_test, y_test))

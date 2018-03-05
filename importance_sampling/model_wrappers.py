@@ -258,6 +258,8 @@ class OracleWrapper(ModelWrapper):
         self._evaluate_on_batch = evaluate_on_batch
 
     def evaluate_batch(self, x, y):
+        if len(y.shape) == 1:
+            y = np.expand_dims(y, axis=1)
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
         inputs = _tolist(x) + [y, dummy_weights] + [0]
         outputs = self._evaluate_on_batch(inputs)
@@ -267,6 +269,8 @@ class OracleWrapper(ModelWrapper):
         return np.hstack([outputs[self.LOSS]] + outputs[self.METRIC0:])
 
     def score_batch(self, x, y):
+        if len(y.shape) == 1:
+            y = np.expand_dims(y, axis=1)
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
         inputs = _tolist(x) + [y, dummy_weights] + [0]
         outputs = self._evaluate_on_batch(inputs)
@@ -274,6 +278,9 @@ class OracleWrapper(ModelWrapper):
         return outputs[self.SCORE].ravel()
 
     def train_batch(self, x, y, w):
+        if len(y.shape) == 1:
+            y = np.expand_dims(y, axis=1)
+
         # train on a single batch
         outputs = self._train_on_batch(_tolist(x) + [y, w])
 

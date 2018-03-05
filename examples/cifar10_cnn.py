@@ -14,6 +14,7 @@ from keras.preprocessing.image import ImageDataGenerator
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Activation, Flatten
 from keras.layers import Conv2D, MaxPooling2D
+from keras.regularizers import l2
 
 from importance_sampling.training import ImportanceTraining
 
@@ -34,26 +35,23 @@ y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
 
-model.add(Conv2D(32, (3, 3), padding='same',
+model.add(Conv2D(32, (3, 3), padding='same', kernel_regularizer=l2(1e-5),
                  input_shape=x_train.shape[1:]))
 model.add(Activation('relu'))
-model.add(Conv2D(32, (3, 3)))
+model.add(Conv2D(32, (3, 3), kernel_regularizer=l2(1e-5)))
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
 
-model.add(Conv2D(64, (3, 3), padding='same'))
+model.add(Conv2D(64, (3, 3), padding='same', kernel_regularizer=l2(1e-5)))
 model.add(Activation('relu'))
-model.add(Conv2D(64, (3, 3)))
+model.add(Conv2D(64, (3, 3), kernel_regularizer=l2(1e-5)))
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
-model.add(Dropout(0.25))
 
 model.add(Flatten())
-model.add(Dense(512))
+model.add(Dense(512, kernel_regularizer=l2(1e-5)))
 model.add(Activation('relu'))
-model.add(Dropout(0.5))
-model.add(Dense(num_classes))
+model.add(Dense(num_classes, kernel_regularizer=l2(1e-5)))
 model.add(Activation('softmax'))
 
 # initiate RMSprop optimizer
@@ -69,14 +67,8 @@ x_test = x_test.astype('float32')
 x_train /= 255
 x_test /= 255
 
-wrapped_model = ImportanceTraining(
-    model,
-    k=0.5,
-    presample=64,
-    adaptive_smoothing=True,
-    smooth=0.5,
-    forward_batch_size=64
-)
+wrapped_model = ImportanceTraining(model)
+
 if not data_augmentation:
     print('Not using data augmentation.')
     wrapped_model.fit(x_train, y_train,

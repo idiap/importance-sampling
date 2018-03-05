@@ -3,19 +3,23 @@
 # Written by Angelos Katharopoulos <angelos.katharopoulos@idiap.ch>
 #
 
+import sys
+
 from keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
+from keras.layers import Dropout, BatchNormalization
 import numpy as np
 
 from .datasets import InMemoryDataset, GeneratorDataset
 from .model_wrappers import OracleWrapper
-from .samplers import AdaptiveAdditiveSmoothingSampler, \
-    AdditiveSmoothingSampler, ModelSampler, LSTMSampler
+from .samplers import ConditionalStartSampler, VarianceReductionCondition, \
+    AdaptiveAdditiveSmoothingSampler, AdditiveSmoothingSampler, ModelSampler, \
+    LSTMSampler
 from .reweighting import BiasedReweightingPolicy
 from .utils.functional import ___, compose, partial
 
 
 class _BaseImportanceTraining(object):
-    def __init__(self, model):
+    def __init__(self, model, score="gnorm", layer=None):
         """Abstract base class for training a model using importance sampling.
         
         Arguments
@@ -24,8 +28,27 @@ class _BaseImportanceTraining(object):
         """
         # Wrap and transform the model so that it outputs the importance scores
         # and can be used in an importance sampling training scheme
+        self._check_model(model)
         self.original_model = model
-        self.model = OracleWrapper(model, self.reweighting)
+        self.model = OracleWrapper(
+            model,
+            self.reweighting,
+            score=score,
+            layer=layer
+        )
+
+    def _check_model(self, model):
+        """Check if the model uses Dropout and BatchNorm and warn that it may
+        affect the importance calculations."""
+        if any(
+            isinstance(l, (BatchNormalization, Dropout))
+            for l in model.layers
+        ):
+            sys.stderr.write(("[NOTICE]: You are using BatchNormalization "
+                              "and/or Dropout.\nThose layers may affect the "
+                              "importance calculations and you are advised "
+                              "to exchange them for LayerNormalization and L2 "
+                              "regularization.\n"))
 
     @property
     def reweighting(self):
@@ -33,7 +56,7 @@ class _BaseImportanceTraining(object):
         using importance sampling."""
         raise NotImplementedError()
 
-    def sampler(self, dataset):
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
         """Create a new sampler to sample from the given dataset using
         importance sampling."""
         raise NotImplementedError()
@@ -194,7 +217,7 @@ class _BaseImportanceTraining(object):
         })
 
         # Create the sampler
-        sampler = self.sampler(dataset)
+        sampler = self.sampler(dataset, batch_size, steps_per_epoch, epochs)
 
         # Start the training loop
         epoch = 0
@@ -247,6 +270,59 @@ class _BaseImportanceTraining(object):
 
 
 class ImportanceTraining(_BaseImportanceTraining):
+    """Train a model with exact importance sampling.
+
+    Arguments
+    ---------
+        model: The Keras model to train
+        presample: float, the number of samples to presample for scoring
+                   given as a factor of the batch size
+        tau_th: float or None, the variance reduction threshold after which we
+                enable importance sampling
+        forward_batch_size: int or None, the batch size to use for the forward
+                            pass during scoring
+        score: {"gnorm", "loss", "full_gnorm"}, the importance metric to use
+               for importance sampling
+        layer: None or int or Layer, the layer to compute the gnorm with
+    """
+    def __init__(self, model, presample=3.0, tau_th=None,
+                 forward_batch_size=None, score="gnorm", layer=None):
+        # Create the reweighting policy
+        self._reweighting = BiasedReweightingPolicy(1.0) # no bias
+        self._presample = presample
+        self._tau_th = tau_th
+        self._forward_batch_size = forward_batch_size
+
+        # Call the parent to wrap the model
+        super(ImportanceTraining, self).__init__(model, score, layer)
+
+    @property
+    def reweighting(self):
+        return self._reweighting
+
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
+        # Configure the sampler
+        large_batch = int(self._presample * batch_size)
+        forward_batch_size = self._forward_batch_size or batch_size
+        # Compute the threshold using eq. 29 in
+        # https://arxiv.org/abs/1803.00942
+        B = large_batch
+        b = batch_size
+        tau_th = self._tau_th or float(B + 3*b) / (3*b)
+
+        return ConditionalStartSampler(
+            ModelSampler(
+                dataset,
+                self.reweighting,
+                self.model,
+                large_batch=large_batch,
+                forward_batch_size=forward_batch_size
+            ),
+            VarianceReductionCondition(tau_th)
+        )
+
+
+class BiasedImportanceTraining(_BaseImportanceTraining):
     """Train a model with exact importance sampling using the loss as
     importance.
     
@@ -295,7 +371,7 @@ class ImportanceTraining(_BaseImportanceTraining):
     def reweighting(self):
         return self._reweighting
 
-    def sampler(self, dataset):
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
         return self._sampler(dataset)
 
 
@@ -344,7 +420,7 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
     def reweighting(self):
         return self._reweighting
 
-    def sampler(self, dataset):
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
         return self._sampler(dataset)
 
     def fit_generator(*args, **kwargs):

@@ -15,7 +15,7 @@ from importance_sampling.training import ImportanceTraining
 
 max_words = 1000
 batch_size = 32
-epochs = 3
+epochs = 5
 
 print('Loading data...')
 (x_train, y_train), (x_test, y_test) = reuters.load_data(num_words=max_words,
@@ -52,12 +52,16 @@ model.compile(loss='categorical_crossentropy',
               optimizer='adam',
               metrics=['accuracy'])
 
-history = ImportanceTraining(model, k=1.0).fit(x_train, y_train,
+history = ImportanceTraining(model).fit(x_train, y_train,
                     batch_size=batch_size,
                     epochs=epochs,
                     verbose=1,
                     validation_split=0.1)
+train_score = model.evaluate(x_train, y_train,
+                             batch_size=batch_size, verbose=1)
 score = model.evaluate(x_test, y_test,
                        batch_size=batch_size, verbose=1)
+print('Train score:', train_score[0])
+print('Train accuracy:', train_score[1])
 print('Test score:', score[0])
 print('Test accuracy:', score[1])

@@ -1,7 +1,7 @@
 
 # Import what is needed to build the Keras model
 from keras import backend as K
-from keras.layers import Dense
+from keras.layers import Activation, Dense
 from keras.models import Sequential
 
 # Import a toy dataset and the importance training
@@ -14,7 +14,8 @@ def create_nn():
     model = Sequential([
         Dense(40, activation="tanh", input_shape=(2,)),
         Dense(40, activation="tanh"),
-        Dense(1, activation="sigmoid")
+        Dense(1),
+        Activation("sigmoid")
     ])
 
     model.compile(
@@ -48,8 +49,8 @@ if __name__ == "__main__":
     # Train with biased importance sampling
     model.set_weights(weights)
     K.set_value(model.optimizer.lr, 0.01)
-    ImportanceTraining(model, forward_batch_size=1024).fit(
+    ImportanceTraining(model, presample=10, tau_th=2.5).fit(
         x_train, y_train,
-        batch_size=64, epochs=3,
+        batch_size=64, epochs=10,
         validation_data=(x_test, y_test)
     )

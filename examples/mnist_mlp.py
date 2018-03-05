@@ -10,15 +10,16 @@ from __future__ import print_function
 import keras
 from keras.datasets import mnist
 from keras.models import Sequential
-from keras.layers import Dense, Dropout
+from keras.layers import Activation, Dense
 from keras.optimizers import RMSprop
+from keras.regularizers import l2
 
 from importance_sampling.training import ImportanceTraining
 
 
 batch_size = 128
 num_classes = 10
-epochs = 3
+epochs = 5
 
 # the data, shuffled and split between train and test sets
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -37,11 +38,11 @@ y_train = keras.utils.to_categorical(y_train, num_classes)
 y_test = keras.utils.to_categorical(y_test, num_classes)
 
 model = Sequential()
-model.add(Dense(512, activation='relu', input_shape=(784,)))
-model.add(Dropout(0.2))
-model.add(Dense(512, activation='relu'))
-model.add(Dropout(0.2))
-model.add(Dense(10, activation='softmax'))
+model.add(Dense(512, activation='relu', kernel_regularizer=l2(1e-5),
+                input_shape=(784,)))
+model.add(Dense(512, activation='relu', kernel_regularizer=l2(1e-5)))
+model.add(Dense(10, kernel_regularizer=l2(1e-5)))
+model.add(Activation('softmax'))
 
 model.summary()
 
@@ -49,7 +50,7 @@ model.compile(loss='categorical_crossentropy',
               optimizer=RMSprop(),
               metrics=['accuracy'])
 
-history = ImportanceTraining(model, forward_batch_size=1024).fit(
+history = ImportanceTraining(model, presample=5).fit(
     x_train, y_train,
     batch_size=batch_size,
     epochs=epochs,
