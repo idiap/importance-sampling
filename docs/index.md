@@ -14,7 +14,6 @@ This library:
 * wraps Keras models requiring just **one line changed** to try out *Importance Sampling*
 * comes with modified Keras examples for quick and dirty comparison
 * is the result of ongoing research which means that *your mileage may vary*
-* will *not necessarily* result in wall clock speedup
 
 ## Quick-start
 
@@ -61,7 +60,6 @@ Importance sampling has the following dependencies:
 
 * Keras >= 2
 * numpy
-* transparent-keras
 * blinker
 
 You can install it from PyPI with:
@@ -73,16 +71,18 @@ pip install --user keras-importance-sampling
 ## Research
 
 In case you want theoretical and empirical evidence regarding Importance
-Sampling and Deep Learning we encourage you to read our paper [Biased
-Importance Sampling for Deep Neural Network Training][our_paper] and cite it if
-you want using the following bibtex entry.
+Sampling and Deep Learning we encourage you to follow our research.
+
+1. [Not All Samples Are Created Equal: Deep Learning with Importance Sampling (2018)][nasace]
+2. [Biased Importance Sampling for Deep Neural Network Training (2017)][biased_is]
 
 ```bibtex
-@article{katharopoulos2017is,
+@article{katharopoulos2018is,
     Author = {Katharopoulos, Angelos and Fleuret, Fran\c{c}ois},
-    Journal = {arXiv preprint arXiv:1706.00043},
-    Title = {Biased Importance Sampling for Deep Neural Network Training},
-    Year = {2017}
+    Journal = {arXiv preprint arXiv:1803.00942},
+    Title = {Not All Samples Are Created Equal: Deep Learning with Importance
+        Sampling},
+    Year = {2018}
 }
 ```
 
@@ -100,7 +100,8 @@ information regarding support, copyright and the license can be found in the
 [LICENSE][lic] file in the repository.
 
 [github_examples]: https://github.com/idiap/importance-sampling/tree/master/examples
-[our_paper]: https://arxiv.org/abs/1706.00043
+[nasace]: https://arxiv.org/abs/1803.00942
+[biased_is]: https://arxiv.org/abs/1706.00043
 [zhao_zhang]: http://www.jmlr.org/proceedings/papers/v37/zhaoa15.pdf
 [distributed_is]: https://arxiv.org/pdf/1511.06481
 [lic]: https://github.com/idiap/importance-sampling/blob/master/LICENSE

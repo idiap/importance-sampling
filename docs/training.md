@@ -4,11 +4,11 @@ The `training` module provides several implementations of `ImportanceTraining`
 that can wrap a *Keras* model and train it with importance sampling.
 
 ```python
-from importance_sampling.training import ImportanceTraining
+from importance_sampling.training import ImportanceTraining, BiasedImportanceTraining
 
 # assuming model is a Keras model
 wrapped_model = ImportanceTraining(model)
-wrapped_model = ImportanceTraining(model, k=1.0, smooth=0.5)
+wrapped_model = BiasedImportanceTraining(model, k=1.0, smooth=0.5)
 
 wrapped_model.fit(x_train, y_train, epochs=10)
 model.evaluate(x_test, y_test)
@@ -16,22 +16,26 @@ model.evaluate(x_test, y_test)
 
 ## Bias
 
-All importance training classes accept a constructor parameter \(k \in (-\infty,
-1]\). \(k\) biases the gradient estimator to focus more on hard examples, the
-smaller the value the closer to max-loss minimization the algorithm is. By
-default `k=0.5` which is found to often improve the generalization performance
-of the final model.
+`BiasedImportanceTraining` and `ApproximateImportanceTraining` classes accept a
+constructor parameter \(k \in (-\infty, 1]\). \(k\) biases the gradient
+estimator to focus more on hard examples, the smaller the value the closer to
+max-loss minimization the algorithm is. By default `k=0.5` which is found to
+often improve the generalization performance of the final model.
 
 ## Smoothing
 
 Modern deep networks often have innate sources of randomness (e.g. dropout,
 batch normalization) that can result in noisy importance predictions. To
 alleviate this noise one can smooth the importance using additive smoothing.
+The proposed `ImportanceTraining` class does not use smoothing and we propose
+to replace *Dropout* and *BatchNormalization* with \(L_2\) regularization and
+*LayerNormalization*.
 
-The \(\text{smooth} \in \mathbb{R}\) parameter is added to all importance
-predictions before computing the sampling distribution. In addition, all
-classes accept the \(\text{adaptive_smoothing}\) parameter which when set to
-`True` multiplies \(\text{smooth}\) with \(\bar{L} \approx
+The classes that accept smoothing do so in the following way, the
+\(\text{smooth} \in \mathbb{R}\) parameter is added to all importance
+predictions before computing the sampling distribution. In addition, they
+accept the \(\text{adaptive_smoothing}\) parameter which when set to `True`
+multiplies \(\text{smooth}\) with \(\bar{L} \approx
 \mathbb{E}\left[\frac{1}{\|B\|} \sum_{i \in B} L(x_i, y_i)\right]\) as computed
 by the moving average of the mini-batch losses.
 
@@ -141,13 +145,48 @@ A *Keras* `History` instance.
 ## ImportanceTraining
 
 ```
-importance_sampling.training.ImportanceTraining(model, k=0.5, smooth=0.0, adaptive_smoothing=False, presample=256, forward_batch_size=128)
+importance_sampling.training.ImportanceTraining(model, presample=3.0, tau_th=None, forward_batch_size=None, score="gnorm", layer=None)
 ```
 
 `ImportanceTraining` uses the passed model to compute the importance of the
-samples. Initially, it samples uniformly `presample` samples, then it runs a
-**forward pass** for all of them to compute the loss (which is used as the
-importance in this case) and **resamples according to the importance**.
+samples. It computes the variance reduction and enables importance sampling
+only when the variance will be reduced more than `tau_th`. When importance sampling is enabled, it
+samples uniformly `presample*batch_size` samples, then it runs a
+**forward pass** for all of them to compute the `score` and **resamples
+according to the importance**.
+
+See our [paper](https://arxiv.org/abs/1803.00942) for a precise definition of
+the algorithm.
+
+**Arguments**
+
+* **model**: The Keras model to train
+* **presample**: The number of samples to presample for scoring, given as a
+  factor of the batch size
+* **tau\_th**: The variance reduction threshold after which we enable
+  importance sampling, when not given it is computed from eq. 29 (it is given
+  in units of batch size increment)
+* **forward\_batch\_size**: Define the batch size when running the forward pass
+  to compute the importance
+* **score**: Choose the importance score among \(\{\text{gnorm}, \text{loss},
+  \text{full_gnorm}\}\). `gnorm` computes an upper bound to the full gradient norm
+  that requires only one forward pass.
+* **layer**: Defines which layer will be used to compute the upper bound (if
+  not given it is automatically inferred). It can also be given as an index in
+  the model's layers property.
+
+## BiasedImportanceTraining
+
+```
+importance_sampling.training.BiasedImportanceTraining(model, k=0.5, smooth=0.0, adaptive_smoothing=False, presample=256, forward_batch_size=128)
+```
+
+`BiasedImportanceTraining` uses the model and the loss to compute the per
+sample importance. `presample` data points are sampled uniformly and after a
+forward pass on all of them the importance distribution is calculated and we
+resample the mini batch.
+
+See the corresponding [paper](https://arxiv.org/abs/1706.00043) for details.
 
 **Arguments**
 
@@ -163,7 +202,6 @@ importance in this case) and **resamples according to the importance**.
 * **forward\_batch\_size**: Define the batch size when running the forward pass
   to compute the importance
 
-
 ## ApproximateImportanceTraining
 
 ```
@@ -172,7 +210,9 @@ importance_sampling.training.ApproximateImportanceTraining(model, k=0.5, smooth=
 
 `ApproximateImportanceTraining` creates a small model that uses the per sample
 history of the loss and the class to predict the importance for each sample. It
-can be faster than `ImportanceTraining` but less effective.
+can be faster than `BiasedImportanceTraining` but less effective.
+
+See the corresponding [paper](https://arxiv.org/abs/1706.00043) for details.
 
 **Arguments**
 

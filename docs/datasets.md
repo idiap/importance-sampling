@@ -189,6 +189,69 @@ assert dset.output_size == 10
 assert len(dset.train_data) == 10 * 50000
 ```
 
+## GeneratorDataset
+
+```python
+importance_sampling.dataset.GeneratorDataset(train_data, test_data=None, test_data_length=None, cache_size=5)
+```
+
+The `GeneratorDataset` wraps one or two generators and partially implements the
+`BaseDataset` interface. The `test_data` can be a generator or in memory data.
+The generators are consumed in background threads and at most `cache_size`
+return values are saved from each at any given time.
+
+**Arguments**
+
+* **train\_data**: A normal Keras compatible data generator. It should be infinite and
+  return both inputs and targets
+* **test\_data**: Either a Keras compatible data generator or a list, numpy
+  array etc.
+* **test\_data\_length**: When `test_data` is a generator then the number of
+  points in the test set should be given.
+* **cach\_size**: The maximum return values cached in the backgound threads
+  from the generators, equivalent to Keras's `max_queue_size`
+
+**Example**
+
+```python
+from keras.datasets import cifar10
+from keras.preprocessing.image import ImageDataGenerator
+from keras.utils import to_categorical
+from importance_sampling.datasets import GeneratorDataset
+
+# Load cifar into x_train, y_train, x_test, y_test
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+y_train = to_categorical(y_train, 10)
+y_test = to_categorical(y_test, 10)
+x_train = x_train.astype('float32')
+x_test = x_test.astype('float32')
+x_train /= 255
+x_test /= 255
+
+# Create a data augmentation pipeline
+datagen = ImageDataGenerator(
+    featurewise_center=False,  # set input mean to 0 over the dataset
+    samplewise_center=False,  # set each sample mean to 0
+    featurewise_std_normalization=False,  # divide inputs by std of the dataset
+    samplewise_std_normalization=False,  # divide each input by its std
+    zca_whitening=False,  # apply ZCA whitening
+    rotation_range=0,  # randomly rotate images in the range (degrees, 0 to 180)
+    width_shift_range=0.1,  # randomly shift images horizontally (fraction of total width)
+    height_shift_range=0.1,  # randomly shift images vertically (fraction of total height)
+    horizontal_flip=True,  # randomly flip images
+    vertical_flip=False)  # randomly flip images
+datagen.fit(x_train)
+
+dset = GeneratorDataset(
+    datagen.flow(x_train, y_train, batch_size=32),
+    (x_test, y_test)
+)
+
+assert dset.shape == (32, 32, 3)
+assert dset.output_size == 10
+assert len(dset.test_data) == 10000
+```
+
 ## Provided dataset classes
 
 `MNIST`, `CIFAR10` and `CIFAR100` are already provided as dataset classes with

@@ -61,7 +61,7 @@ def setup_package():
             "Programming Language :: Python :: 3.5",
         ],
         packages=find_packages(exclude=["docs", "tests", "scripts", "examples"]),
-        install_requires=["keras>=2", "blinker", "numpy", "transparent-keras"]
+        install_requires=["keras>=2", "blinker", "numpy"]
     )
 
 
