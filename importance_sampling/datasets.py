@@ -4,7 +4,7 @@
 #
 
 from bisect import bisect_left
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from functools import partial
 import gzip
 from itertools import islice
@@ -261,15 +261,67 @@ CanevetICML2016 = compose(InMemoryDataset.from_loadable, canevet_icml2016_nn)
 class GeneratorDataset(BaseDataset):
     """GeneratorDataset wraps a generator (or two) and partially implements the
     BaseDataset interface."""
-    def __init__(self, train_data, test_data=None, test_data_length=None):
+    def __init__(self, train_data, test_data=None, test_data_length=None,
+                 cache_size=5):
         self._train_data_gen = train_data
         self._test_data_gen = test_data
         self._test_data_len = test_data_length
+        self._cache_size = cache_size
 
         # Determine the shapes and sizes
         x, y = next(self._train_data_gen)
         self._shape = self._extract_shape(x)
         self._output_size = y.shape[1] if len(y.shape) > 1 else 1
+
+        # Create the queues
+        self._train_cache = deque()
+        self._train_lock = Lock()
+        self._train_cv = Condition(self._train_lock)
+        self._test_cache = deque()
+        self._test_lock = Lock()
+        self._test_cv = Condition(self._test_lock)
+
+        # Start the threads
+        self._train_thread = Thread(
+            name="train_thread",
+            target=self._generator_thread,
+            args=(
+                self._train_data_gen,
+                self._train_cache,
+                self._train_lock,
+                self._train_cv,
+                self._cache_size
+            )
+        )
+        self._test_thread = Thread(
+            name="test_thread",
+            target=self._generator_thread,
+            args=(
+                self._test_data_gen,
+                self._test_cache,
+                self._test_lock,
+                self._test_cv,
+                self._cache_size
+            )
+        )
+        self._train_thread.daemon = True
+        self._test_thread.daemon = True
+        self._train_thread.start()
+        self._test_thread.start()
+
+    @staticmethod
+    def _generator_thread(gen, cache, lock, cv, max_size):
+        if gen is None:
+            return
+        if isinstance(gen, (tuple, list, np.ndarray)):
+            return
+        while True:
+            xy = next(gen)
+            with lock:
+                while len(cache) >= max_size:
+                    cv.wait()
+                cache.append(xy)
+                cv.notify()
 
     def _get_count(self, idxs):
         if isinstance(idxs, slice):
@@ -283,21 +335,20 @@ class GeneratorDataset(BaseDataset):
         else:
             raise IndexError("Invalid indices passed to dataset")
 
-    def _get_n_batches(self, generator, n_batches):
-        batches = list(islice(generator, n_batches))
-
-        return tuple(map(np.vstack, zip(*batches)))
-
-    def _get_at_least_n(self, generator, n):
+    def _get_at_least_n(self, cache, lock, cv, n):
         cnt = 0
         batches = []
-        while cnt < n:
-            batch = next(generator)
-            cnt += len(batch[1])
-            if isinstance(batch[0], (list, tuple)):
-                batches.append(list(batch[0]) + [batch[1]])
-            else:
-                batches.append(batch)
+        with lock:
+            while cnt < n:
+                while len(cache) <= 0:
+                    cv.wait()
+                batch = cache.popleft()
+                cv.notify()
+                cnt += len(batch[1])
+                if isinstance(batch[0], (list, tuple)):
+                    batches.append(list(batch[0]) + [batch[1]])
+                else:
+                    batches.append(batch)
 
         xy = tuple(map(np.vstack, zip(*batches)))
         if len(xy) > 2:
@@ -307,7 +358,12 @@ class GeneratorDataset(BaseDataset):
 
     def _train_data(self, idxs=slice(None)):
         N = self._get_count(idxs)
-        x, y = self._get_at_least_n(self._train_data_gen, N)
+        x, y = self._get_at_least_n(
+            self._train_cache,
+            self._train_lock,
+            self._train_cv,
+            N
+        )
 
         return self._slice_data(x, y, slice(N))
 
@@ -326,7 +382,12 @@ class GeneratorDataset(BaseDataset):
 
         # Test data are provided via a generator
         N = min(self._test_data_len, self._get_count(idxs))
-        x, y = self._get_at_least_n(self._test_data_gen, N)
+        x, y = self._get_at_least_n(
+            self._test_cache,
+            self._test_lock,
+            self._test_cv,
+            N
+        )
 
         return self._slice_data(x, y, slice(N))
 
