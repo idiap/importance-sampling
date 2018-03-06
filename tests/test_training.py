@@ -94,6 +94,20 @@ class TestTraining(unittest.TestCase):
             self.assertEqual(len(history.history["loss"]), 5)
             self.assertFalse(any(np.isnan(history.history["loss"])))
 
+    def test_regularizers(self):
+        reg = lambda w: 10
+        model = Sequential([
+            Dense(10, activation="relu", kernel_regularizer=reg,
+                  input_shape=(2,)),
+            Dense(10, activation="relu", kernel_regularizer=reg),
+            Dense(2)
+        ])
+        model.compile("sgd", "mse")
+        model = ImportanceTraining(model)
+        history = model.fit(np.random.rand(64, 2), np.random.rand(64, 2))
+
+        self.assertGreater(history.history["loss"][0], 20.)
+
 
 if __name__ == "__main__":
     unittest.main()
