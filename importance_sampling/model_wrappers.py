@@ -212,7 +212,9 @@ class OracleWrapper(ModelWrapper):
         weights = reweighting.weight_layer()([score_tensor, pred_score])
 
         # Create the output
-        weighted_loss = multiply([loss_tensor, weights])
+        weighted_loss = weighted_loss_model = multiply([loss_tensor, weights])
+        for l in model.losses:
+            weighted_loss += l
         weighted_loss_mean = K.mean(weighted_loss)
 
         # Create the metric layers
@@ -226,7 +228,7 @@ class OracleWrapper(ModelWrapper):
         # trainable_weights etc.
         new_model = Model(
             inputs=_tolist(model.input) + [y_true, pred_score],
-            outputs=[weighted_loss]
+            outputs=[weighted_loss_model]
         )
 
         # Build separate on_batch keras functions for scoring and training
@@ -235,7 +237,7 @@ class OracleWrapper(ModelWrapper):
             new_model.trainable_weights
         )
         learning_phase = []
-        if weighted_loss._uses_learning_phase:
+        if weighted_loss_model._uses_learning_phase:
             learning_phase.append(K.learning_phase())
         inputs = _tolist(model.input) + [y_true, pred_score] + learning_phase
         outputs = [
