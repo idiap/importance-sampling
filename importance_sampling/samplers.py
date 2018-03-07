@@ -36,6 +36,14 @@ class BaseSampler(object):
         else:
             return x[idxs], y[idxs]
 
+    def _send_messages(self, idxs, xy, w, predicted_scores):
+        signal("is.sample").send({
+            "idxs": idxs1,
+            "xy": xy,
+            "w": w,
+            "predicted_scores": scores
+        })
+
     def _get_samples_with_scores(self, batch_size):
         """Child classes should implement this method.
 
@@ -74,12 +82,7 @@ class BaseSampler(object):
             xy = self._slice_data(x, y, idxs2)
 
         scores = scores[idxs2] if scores is not None else np.ones(batch_size)
-        signal("is.sample").send({
-            "idxs": idxs1,
-            "xy": xy,
-            "w": w,
-            "predicted_scores": scores
-        })
+        self._send_messages(idxs1, xy, w, scores)
         return idxs1[idxs2], xy, w
 
     def update(self, idxs, results):
@@ -467,8 +470,6 @@ class PowerSmoothingSampler(SamplerDecorator):
 class ConditionalStartSampler(SamplerDecorator):
     """ConditionalStartSampler samples uniformly untill a condition is met.
 
-    It is an abstract class meant to be extended.
-
     Arguments
     ---------
         sampler: BaseSampler
@@ -503,6 +504,7 @@ class ConditionalStartSampler(SamplerDecorator):
     def update(self, idxs, scores):
         if not self.condition.previously_satisfied:
             self.condition.update(scores)
+        self.sampler.update(idxs, scores)
 
 
 class Condition(object):
@@ -629,6 +631,10 @@ class VarianceReductionCondition(Condition):
         self._momentum = momentum
 
     @property
+    def variance_reduction(self):
+        return self._vr
+
+    @property
     def satisfied(self):
         self._previous_vr = self._vr
         return self._vr > self._vr_th
@@ -649,6 +655,50 @@ class VarianceReductionCondition(Condition):
             self._momentum * self._vr +
             (1-self._momentum) * new_vr
         )
+
+
+class ConstantVarianceSampler(BaseSampler):
+    """ConstantVarianceSampler uses the VarianceReductionCondition to sample
+    less and less points but keep the variance of the gradients constant."""
+    def __init__(self, dataset, reweighting, model, min_percentage=0.1):
+        self.condition = VarianceReductionCondition(1.5)
+        self.model = model
+        self.min_percentage = min_percentage
+        self.N = _get_dataset_length(dataset, default=1)
+
+        super(ConstantVarianceSampler, self).__init__(dataset, reweighting)
+
+    def sample(self, batch_size):
+        # Sample batch size uniformly at random
+        idxs = np.random.choice(self.N, batch_size)
+        idxs2 = np.arange(len(idxs))
+        x, y = self.dataset.train_data[idxs]
+        scores = np.ones(len(idxs))
+        w = np.ones(len(idxs))
+
+        # This means that we can get a speedup by backpropagating less
+        if self.condition.satisfied:
+            f = max(
+                1.0 / self.condition.variance_reduction,
+                self.min_percentage
+            )
+            N = np.ceil(f * batch_size)
+            scores = self.model.score(x, y, batch_size=batch_size)
+            p = scores / scores.sum()
+            idxs2 = np.random.choice(len(idxs), N, p=p)
+            w = self.reweighting.sample_weights(idxs2, scores)
+            x, y = self._slice_data(x, y, idxs2)
+            self.condition.update(scores)
+
+        return (
+            idxs[idxs2],
+            (x, y),
+            w
+        )
+
+    def update(self, idxs, scores):
+        if not self.condition.previously_satisfied:
+            self.condition.update(scores)
 
 
 class HistorySampler(ModelSampler):
