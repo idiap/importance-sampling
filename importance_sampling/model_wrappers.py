@@ -256,6 +256,7 @@ class OracleWrapper(ModelWrapper):
 
         self.model = new_model
         self.optimizer = optimizer
+        self.model.optimizer = optimizer
         self._train_on_batch = train_on_batch
         self._evaluate_on_batch = evaluate_on_batch
 

@@ -659,9 +659,22 @@ class VarianceReductionCondition(Condition):
 
 class ConstantVarianceSampler(BaseSampler):
     """ConstantVarianceSampler uses the VarianceReductionCondition to sample
-    less and less points but keep the variance of the gradients constant."""
-    def __init__(self, dataset, reweighting, model, min_percentage=0.1):
-        self.condition = VarianceReductionCondition(1.5)
+    less and less points but keep the variance of the gradients constant.
+    
+    Arguments
+    --------
+        dataset: The BaseDataset implementation to sample from
+        reweighting: Compute the weights to make the sampling unbiased etc.
+        model: Used to compute the importance for importance sampling
+        backward_time: The slowdown factor of the backward pass in comparison
+                       to the forward pass
+        min_percentage: Always backpropagate at least that many samples
+    """
+    def __init__(self, dataset, reweighting, model, backward_time=2.0,
+                 min_percentage=0.1):
+        self.condition = VarianceReductionCondition(
+            (1 + backward_time) / backward_time
+        )
         self.model = model
         self.min_percentage = min_percentage
         self.N = _get_dataset_length(dataset, default=1)

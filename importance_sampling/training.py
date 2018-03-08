@@ -338,11 +338,21 @@ class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
                for importance sampling
         layer: None or int or Layer, the layer to compute the gnorm with
     """
+    def __init__(self, model, backward_time=2.0, score="gnorm", layer=None):
+        self._backward_time = backward_time
+
+        super(ConstantVarianceImportanceTraining, self).__init__(
+            model,
+            score,
+            layer
+        )
+
     def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
         return ConstantVarianceSampler(
             dataset,
             self.reweighting,
-            self.model
+            self.model,
+            backward_time=self._backward_time
         )
 
 
