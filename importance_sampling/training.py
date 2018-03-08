@@ -13,7 +13,7 @@ from .datasets import InMemoryDataset, GeneratorDataset
 from .model_wrappers import OracleWrapper
 from .samplers import ConditionalStartSampler, VarianceReductionCondition, \
     AdaptiveAdditiveSmoothingSampler, AdditiveSmoothingSampler, ModelSampler, \
-    LSTMSampler
+    LSTMSampler, ConstantVarianceSampler
 from .reweighting import BiasedReweightingPolicy
 from .utils.functional import ___, compose, partial
 
@@ -21,7 +21,7 @@ from .utils.functional import ___, compose, partial
 class _BaseImportanceTraining(object):
     def __init__(self, model, score="gnorm", layer=None):
         """Abstract base class for training a model using importance sampling.
-        
+
         Arguments
         ---------
             model: The Keras model to train
@@ -269,7 +269,18 @@ class _BaseImportanceTraining(object):
         )
 
 
-class ImportanceTraining(_BaseImportanceTraining):
+class _UnbiasedImportanceTraining(_BaseImportanceTraining):
+    def __init__(self, model, score="gnorm", layer=None):
+        self._reweighting = BiasedReweightingPolicy(1.0)  # no bias
+
+        super(_UnbiasedImportanceTraining, self).__init__(model, score, layer)
+
+    @property
+    def reweighting(self):
+        return self._reweighting
+
+
+class ImportanceTraining(_UnbiasedImportanceTraining):
     """Train a model with exact importance sampling.
 
     Arguments
@@ -287,18 +298,12 @@ class ImportanceTraining(_BaseImportanceTraining):
     """
     def __init__(self, model, presample=3.0, tau_th=None,
                  forward_batch_size=None, score="gnorm", layer=None):
-        # Create the reweighting policy
-        self._reweighting = BiasedReweightingPolicy(1.0) # no bias
         self._presample = presample
         self._tau_th = tau_th
         self._forward_batch_size = forward_batch_size
 
         # Call the parent to wrap the model
         super(ImportanceTraining, self).__init__(model, score, layer)
-
-    @property
-    def reweighting(self):
-        return self._reweighting
 
     def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
         # Configure the sampler
@@ -322,10 +327,29 @@ class ImportanceTraining(_BaseImportanceTraining):
         )
 
 
+class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
+    """Train a model faster by keeping the variance constant and
+    backpropagating less and less samples.
+
+    Arguments
+    ---------
+        model: The Keras model to train
+        score: {"gnorm", "loss", "full_gnorm"}, the importance metric to use
+               for importance sampling
+        layer: None or int or Layer, the layer to compute the gnorm with
+    """
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
+        return ConstantVarianceSampler(
+            dataset,
+            self.reweighting,
+            self.model
+        )
+
+
 class BiasedImportanceTraining(_BaseImportanceTraining):
     """Train a model with exact importance sampling using the loss as
     importance.
-    
+
     Arguments
     ---------
         model: The Keras model to train
@@ -345,7 +369,7 @@ class BiasedImportanceTraining(_BaseImportanceTraining):
         self._reweighting = BiasedReweightingPolicy(k)
 
         # Call the parent to wrap the model
-        super(ImportanceTraining, self).__init__(model)
+        super(BiasedImportanceTraining, self).__init__(model)
 
         # Create the sampler factory, the workhorse of the whole deal :-)
         adaptive_smoothing_factory = partial(
@@ -378,7 +402,7 @@ class BiasedImportanceTraining(_BaseImportanceTraining):
 class ApproximateImportanceTraining(_BaseImportanceTraining):
     """Train a model with importance sampling using an LSTM with a class
     embedding to predict the importance of the training samples.
-    
+
     Arguments
     ---------
         model: The Keras model to train

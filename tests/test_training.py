@@ -10,10 +10,16 @@ from keras.models import Model, Sequential
 import numpy as np
 
 from importance_sampling.training import ImportanceTraining, \
-    ApproximateImportanceTraining
+    BiasedImportanceTraining, ApproximateImportanceTraining, \
+    ConstantVarianceImportanceTraining
 
 
 class TestTraining(unittest.TestCase):
+    TRAININGS = [
+        ImportanceTraining, BiasedImportanceTraining,
+        ApproximateImportanceTraining, ConstantVarianceImportanceTraining
+    ]
+
     def __init__(self, *args, **kwargs):
         self.model = Sequential([
             Dense(10, activation="relu", input_shape=(2,)),
@@ -34,7 +40,7 @@ class TestTraining(unittest.TestCase):
         super(TestTraining, self).__init__(*args, **kwargs)
 
     def test_simple_training(self):
-        for Training in [ImportanceTraining, ApproximateImportanceTraining]:
+        for Training in self.TRAININGS:
             model = Training(self.model)
             x = np.random.rand(128, 2)
             y = np.random.rand(128, 2)

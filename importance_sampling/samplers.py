@@ -38,10 +38,10 @@ class BaseSampler(object):
 
     def _send_messages(self, idxs, xy, w, predicted_scores):
         signal("is.sample").send({
-            "idxs": idxs1,
+            "idxs": idxs,
             "xy": xy,
             "w": w,
-            "predicted_scores": scores
+            "predicted_scores": predicted_scores
         })
 
     def _get_samples_with_scores(self, batch_size):
@@ -82,7 +82,7 @@ class BaseSampler(object):
             xy = self._slice_data(x, y, idxs2)
 
         scores = scores[idxs2] if scores is not None else np.ones(batch_size)
-        self._send_messages(idxs1, xy, w, scores)
+        self._send_messages(idxs1[idxs2], xy, w, scores)
         return idxs1[idxs2], xy, w
 
     def update(self, idxs, results):
@@ -674,7 +674,7 @@ class ConstantVarianceSampler(BaseSampler):
         idxs2 = np.arange(len(idxs))
         x, y = self.dataset.train_data[idxs]
         scores = np.ones(len(idxs))
-        w = np.ones(len(idxs))
+        w = np.ones((len(idxs), self.reweighting.weight_size))
 
         # This means that we can get a speedup by backpropagating less
         if self.condition.satisfied:
@@ -689,6 +689,8 @@ class ConstantVarianceSampler(BaseSampler):
             w = self.reweighting.sample_weights(idxs2, scores)
             x, y = self._slice_data(x, y, idxs2)
             self.condition.update(scores)
+
+        self._send_messages(idxs[idxs2], (x, y), w, scores[idxs2])
 
         return (
             idxs[idxs2],
