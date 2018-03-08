@@ -8,10 +8,10 @@ import unittest
 import numpy as np
 
 from importance_sampling.datasets import InMemoryDataset
-from importance_sampling.reweighting import UNWEIGHTED
+from importance_sampling.reweighting import UNWEIGHTED, UNBIASED
 from importance_sampling.samplers import AdaptiveAdditiveSmoothingSampler, \
     AdditiveSmoothingSampler, ModelSampler, PowerSmoothingSampler, \
-    UniformSampler
+    UniformSampler, ConstantVarianceSampler
 
 
 class MockModel(object):
@@ -65,7 +65,6 @@ class TestSamplers(unittest.TestCase):
             expected_ones - N*error < ones < expected_ones + N*error,
             "Got %d and expected %d" % (ones, expected_ones)
         )
-
 
     def test_uniform_sampler(self):
         N = 10000
@@ -129,6 +128,22 @@ class TestSamplers(unittest.TestCase):
             N,
             expected_ones
         )
+
+    def test_constant_variance_sampler(self):
+        importance = 30.0
+        model = MockModel(importance)
+        sampler = ConstantVarianceSampler(self.dataset, UNBIASED, model)
+
+        idxs1, xy, w = sampler.sample(100)
+        sampler.update(idxs1, model.score(xy[0], xy[1]))
+        for i in range(30):
+            _, xy, _ = sampler.sample(100)
+            sampler.update(idxs1, model.score(xy[0], xy[1]))
+        idxs2, xy, w = sampler.sample(100)
+        sampler.update(idxs2, model.score(xy[0], xy[1]))
+
+        self.assertEqual(len(idxs1), 100)
+        self.assertLess(len(idxs2), 100)
 
     @unittest.skip("Not implemented yet")
     def test_lstm_sampler(self):

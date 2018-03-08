@@ -214,4 +214,4 @@ class CorrectingReweighting(Layer):
 
 
 UNWEIGHTED = NoReweightingPolicy()
-UNBIASED = AdjustedBiasedReweightingPolicy(k=1.0)
+UNBIASED = BiasedReweightingPolicy(k=1.0)

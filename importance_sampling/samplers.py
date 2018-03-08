@@ -682,7 +682,7 @@ class ConstantVarianceSampler(BaseSampler):
                 1.0 / self.condition.variance_reduction,
                 self.min_percentage
             )
-            N = np.ceil(f * batch_size)
+            N = int(f * batch_size)
             scores = self.model.score(x, y, batch_size=batch_size)
             p = scores / scores.sum()
             idxs2 = np.random.choice(len(idxs), N, p=p)
