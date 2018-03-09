@@ -7,7 +7,8 @@ from contextlib import contextmanager
 import unittest
 
 from blinker import signal
-from keras.layers import Activation, Dense, Input, dot
+from keras import backend as K
+from keras.layers import Activation, Dense, Input, Lambda, dot
 from keras.models import Sequential, Model
 import numpy as np
 
@@ -90,6 +91,30 @@ class TestModelWrappers(unittest.TestCase):
             self.assertEqual(l.size, 1)
             l = wrapped.evaluate_batch(x, y)
             self.assertEqual(l.size, 16)
+
+    def test_model_learning_phase(self):
+        def one_zero(x):
+            return K.in_train_phase(
+                K.zeros_like(x),
+                K.ones_like(x)
+            )
+
+        model = Sequential([
+            Lambda(one_zero, input_shape=(1,))
+        ])
+        model.compile("sgd", "mse")
+
+        x = np.random.rand(10, 1)
+        l1 = model.test_on_batch(x, np.ones_like(x))
+        l2 = model.train_on_batch(x, np.zeros_like(x))
+        self.assertEqual(l1, 0)
+        self.assertEqual(l2, 0)
+
+        model = OracleWrapper(model, BiasedReweightingPolicy(), score="loss")
+        l1 = model.evaluate_batch(x, np.ones_like(x))[0].sum()
+        l2 = model.train_batch(x, np.zeros_like(x), np.ones_like(x))[0].sum()
+        self.assertEqual(l1, 0)
+        self.assertEqual(l2, 0)
 
     def test_signals(self):
         model, wrapped, x, y = self._get_model()

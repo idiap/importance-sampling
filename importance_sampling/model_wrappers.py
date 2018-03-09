@@ -250,9 +250,13 @@ class OracleWrapper(ModelWrapper):
         train_on_batch = K.function(
             inputs=inputs,
             outputs=outputs,
-            updates=updates
+            updates=updates + model.updates + model.metrics_updates
         )
-        evaluate_on_batch = K.function(inputs=inputs, outputs=outputs)
+        evaluate_on_batch = K.function(
+            inputs=inputs,
+            outputs=outputs,
+            updates=model.state_updates + model.metrics_updates
+        )
 
         self.model = new_model
         self.optimizer = optimizer
@@ -285,7 +289,7 @@ class OracleWrapper(ModelWrapper):
             y = np.expand_dims(y, axis=1)
 
         # train on a single batch
-        outputs = self._train_on_batch(_tolist(x) + [y, w])
+        outputs = self._train_on_batch(_tolist(x) + [y, w, 1])
 
         # Add the outputs in a tuple to send to whoever is listening
         result = (
