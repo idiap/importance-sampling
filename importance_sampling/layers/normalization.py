@@ -196,7 +196,7 @@ class LayerNormalization(Layer):
 
         # Create trainable variables
         self.gamma = self.add_weight(
-            shape=gamm_shape,
+            shape=gamma_shape,
             name="gamma",
             initializer=initializers.get("ones")
         )
