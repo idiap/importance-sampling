@@ -668,15 +668,16 @@ class ConstantVarianceSampler(BaseSampler):
         model: Used to compute the importance for importance sampling
         backward_time: The slowdown factor of the backward pass in comparison
                        to the forward pass
-        min_percentage: Always backpropagate at least that many samples
+        extra_samples: Sample that much more than suggested by the predicted
+                       variance reduction to account for the approximation
     """
     def __init__(self, dataset, reweighting, model, backward_time=2.0,
-                 min_percentage=0.1):
+                 extra_samples=0.2):
         self.condition = VarianceReductionCondition(
-            (1 + backward_time) / backward_time
+            1.0 / ((backward_time / (1+backward_time)) - extra_samples)
         )
         self.model = model
-        self.min_percentage = min_percentage
+        self.extra_samples = extra_samples
         self.N = _get_dataset_length(dataset, default=1)
 
         super(ConstantVarianceSampler, self).__init__(dataset, reweighting)
@@ -691,10 +692,7 @@ class ConstantVarianceSampler(BaseSampler):
 
         # This means that we can get a speedup by backpropagating less
         if self.condition.satisfied:
-            f = max(
-                1.0 / self.condition.variance_reduction,
-                self.min_percentage
-            )
+            f = 1.0 / self.condition.variance_reduction + self.extra_samples
             N = int(f * batch_size)
             scores = self.model.score(x, y, batch_size=batch_size)
             p = scores / scores.sum()
@@ -702,6 +700,70 @@ class ConstantVarianceSampler(BaseSampler):
             w = self.reweighting.sample_weights(idxs2, scores)
             x, y = self._slice_data(x, y, idxs2)
             self.condition.update(scores)
+
+        self._send_messages(idxs[idxs2], (x, y), w, scores[idxs2])
+
+        return (
+            idxs[idxs2],
+            (x, y),
+            w
+        )
+
+    def update(self, idxs, scores):
+        if not self.condition.previously_satisfied:
+            self.condition.update(scores)
+
+
+class ConstantTimeSampler(BaseSampler):
+    """ConstantTimeSampler uses the VarianceReductionCondition to increase the
+    quality of the gradients while keeping the time per iterations constant.
+    
+    Arguments
+    ---------
+    """
+    def __init__(self, dataset, reweighting, model, backward_time=2.0,
+                 tau_th=2.0, ratio=0.5, min_a=0.2):
+        self.condition = VarianceReductionCondition(tau_th)
+        self.backward_time = backward_time
+        self.ratio = ratio
+        self.min_a = min_a
+        self.model = model
+        self.N = _get_dataset_length(dataset, default=1)
+
+        super(ConstantTimeSampler, self).__init__(dataset, reweighting)
+
+    def sample(self, batch_size):
+        # Check whether the condition is satisfied so that we can sample with
+        # importance instead of uniformly
+        if self.condition.satisfied:
+            # compute the available time
+            t = (1.0 + self.backward_time) * batch_size
+            # compute the minimum forward-backward batch
+            a = max(
+                self.min_a * batch_size,
+                batch_size / self.condition.variance_reduction
+            )
+            # compute the maximum scored samples
+            B = t - (1.0 + self.backward_time)*a
+            # split the difference according to ratio keeping the time fixed
+            B = int(batch_size + (B - batch_size)*self.ratio)
+            a = int((t - B) / (1.0 + self.backward_time))
+
+            # do the hippy shake
+            idxs = np.random.choice(self.N, B)
+            x, y = self.dataset.train_data[idxs]
+            scores = self.model.score(x, y, batch_size=batch_size)
+            p = scores / scores.sum()
+            idxs2 = np.random.choice(B, a, p=p)
+            w = self.reweighting.sample_weights(idxs2, scores)
+            x, y = self._slice_data(x, y, idxs2)
+            self.condition.update(scores)
+        else:
+            idxs = np.random.choice(self.N, batch_size)
+            idxs2 = np.arange(len(idxs))
+            x, y = self.dataset.train_data[idxs]
+            scores = np.ones(len(idxs))
+            w = np.ones((len(idxs), self.reweighting.weight_size))
 
         self._send_messages(idxs[idxs2], (x, y), w, scores[idxs2])
 

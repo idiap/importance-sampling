@@ -13,7 +13,7 @@ from .datasets import InMemoryDataset, GeneratorDataset
 from .model_wrappers import OracleWrapper
 from .samplers import ConditionalStartSampler, VarianceReductionCondition, \
     AdaptiveAdditiveSmoothingSampler, AdditiveSmoothingSampler, ModelSampler, \
-    LSTMSampler, ConstantVarianceSampler
+    LSTMSampler, ConstantVarianceSampler, ConstantTimeSampler
 from .reweighting import BiasedReweightingPolicy
 from .utils.functional import ___, compose, partial
 
@@ -241,6 +241,9 @@ class _BaseImportanceTraining(object):
                     batch_logs[l] = o
                 callbacks.on_batch_end(step, batch_logs)
 
+                if self.model.model.stop_training:
+                    break
+
             # Evaluate now that an epoch passed
             epoch_logs = {}
             if len(dataset.test_data) > 0:
@@ -327,9 +330,41 @@ class ImportanceTraining(_UnbiasedImportanceTraining):
         )
 
 
-class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
-    """Train a model faster by keeping the variance constant and
-    backpropagating less and less samples.
+class ConstantVarianceTraining(_UnbiasedImportanceTraining):
+    """Train a model faster by keeping the per iteration variance constant but
+    decreasing the time.
+
+    Arguments
+    ---------
+        model: The Keras model to train
+        score: {"gnorm", "loss", "full_gnorm"}, the importance metric to use
+               for importance sampling
+        layer: None or int or Layer, the layer to compute the gnorm with
+    """
+    def __init__(self, model, backward_time=2.0, extra_samples=2.0,
+                 score="gnorm", layer=None):
+        self._backward_time = backward_time
+        self._extra_samples = extra_samples
+
+        super(ConstantTimeImportanceTraining, self).__init__(
+            model,
+            score,
+            layer
+        )
+
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
+        return ConstantVarianceSampler(
+            dataset,
+            self.reweighting,
+            self.model,
+            backward_time=self._backward_time,
+            extra_samples=self._extra_samples
+        )
+
+
+class ConstantTimeImportanceTraining(_UnbiasedImportanceTraining):
+    """Train a model faster by keeping the per iteration time constant but
+    improving the quality of the gradients.
 
     Arguments
     ---------
@@ -341,14 +376,14 @@ class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
     def __init__(self, model, backward_time=2.0, score="gnorm", layer=None):
         self._backward_time = backward_time
 
-        super(ConstantVarianceImportanceTraining, self).__init__(
+        super(ConstantTimeImportanceTraining, self).__init__(
             model,
             score,
             layer
         )
 
     def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
-        return ConstantVarianceSampler(
+        return ConstantTimeSampler(
             dataset,
             self.reweighting,
             self.model,

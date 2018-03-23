@@ -236,6 +236,9 @@ class OracleWrapper(ModelWrapper):
             weighted_loss_mean,
             new_model.trainable_weights
         )
+        metrics_updates = []
+        if hasattr(model, "metrics_updates"):
+            metrics_updates = model.metrics_updates
         learning_phase = []
         if weighted_loss_model._uses_learning_phase:
             learning_phase.append(K.learning_phase())
@@ -250,12 +253,12 @@ class OracleWrapper(ModelWrapper):
         train_on_batch = K.function(
             inputs=inputs,
             outputs=outputs,
-            updates=updates + model.updates + model.metrics_updates
+            updates=updates + model.updates + metrics_updates
         )
         evaluate_on_batch = K.function(
             inputs=inputs,
             outputs=outputs,
-            updates=model.state_updates + model.metrics_updates
+            updates=model.state_updates + metrics_updates
         )
 
         self.model = new_model

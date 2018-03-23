@@ -130,9 +130,17 @@ class TestSamplers(unittest.TestCase):
         )
 
     def test_constant_variance_sampler(self):
-        importance = 30.0
+        importance = 100.0
+        y = np.zeros(1024)
+        y[np.random.choice(1024, 10)] = 1.0
+        dataset = InMemoryDataset(
+            np.random.rand(1024, 2),
+            y,
+            np.random.rand(100, 2),
+            y[:100]
+        )
         model = MockModel(importance)
-        sampler = ConstantVarianceSampler(self.dataset, UNBIASED, model)
+        sampler = ConstantVarianceSampler(dataset, UNBIASED, model)
 
         idxs1, xy, w = sampler.sample(100)
         sampler.update(idxs1, model.score(xy[0], xy[1]))
