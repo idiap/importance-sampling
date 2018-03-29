@@ -25,7 +25,8 @@ from keras.regularizers import l2
 from keras.utils import to_categorical
 import numpy as np
 
-from importance_sampling.layers import LayerNormalization
+from importance_sampling.datasets import CIFAR10, ZCAWhitening
+from importance_sampling.models import wide_resnet
 from importance_sampling.training import ImportanceTraining
 from example_utils import get_parser
 
@@ -39,11 +40,11 @@ class TrainingSchedule(Callback):
 
     def _get_lr(self, progress):
         if progress > 0.8:
-            return 1e-4
-        elif progress > 0.6:
-            return 1e-3
+            return 0.004
+        elif progress > 0.5:
+            return 0.02
         else:
-            return 1e-2
+            return 0.1
 
     def on_train_begin(self, logs={}):
         self._start = time.time()
@@ -66,79 +67,25 @@ class TrainingSchedule(Callback):
         return self._lr
 
 
-def resnet(depth, batch_norm=False, l2_reg=1e-4):
-    def layer(x_in, filters, kernel_size, strides, norm, activation):
-        conv = Conv2D(
-            filters,
-            kernel_size=kernel_size,
-            strides=strides,
-            padding="same",
-            use_bias=False,
-            kernel_regularizer=l2(l2_reg)
-        )
-
-        x = conv(x_in)
-        if norm:
-            if batch_norm:
-                x = BatchNormalization()(x)
-            else:
-                x = LayerNormalization()(x)
-        if activation:
-            x = Activation("relu")(x)
-
-        return x
-
-    def implementation(input_shape, output_size):
-        # How many blocks per stage
-        blocks = int((depth - 2) / 6)
-        # Initial number of filters
-        filters = 64
-
-        # Build the layers
-        x = x_in = Input(shape=input_shape)
-        x = layer(x, filters, 3, 1, True, True)
-        for stage in range(3):
-            for block in range(blocks):
-                strides = 1
-                if stage > 0 and block == 0:
-                    strides = 2
-                y = layer(x, filters, 3, strides, True, True)
-                y = layer(y, filters, 3, 1, True, False)
-                if strides > 1:
-                    x = layer(x, filters, 1, strides, False, False)
-
-                x = add([x, y])
-                x = Activation("relu")(x)
-            filters *= 2
-
-        # Add the classifier
-        y = GlobalAveragePooling2D()(x)
-        y = Dense(output_size, kernel_initializer="he_normal")(y)
-        y = Activation("softmax")(y)
-
-        # Create the model
-        return Model(x_in, y)
-    return implementation
-
-
 if __name__ == "__main__":
     parser = get_parser("Train a ResNet on CIFAR10")
     parser.add_argument(
         "--depth",
         type=int,
-        default=20,
+        default=28,
         help="Choose the depth of the resnet"
+    )
+    parser.add_argument(
+        "--width",
+        type=int,
+        default=2,
+        help="Choose the width of the resnet"
     )
     parser.add_argument(
         "--presample",
         type=float,
         default=3.0,
         help="Presample that many times the batch size for importance sampling"
-    )
-    parser.add_argument(
-        "--bn",
-        action="store_true",
-        help="Use BatchNormalization instead of LayerNormalization"
     )
     parser.add_argument(
         "--batch_size",
@@ -152,27 +99,16 @@ if __name__ == "__main__":
         default=3600*3,
         help="How many seconds to train for"
     )
-    parser.add_argument(
-        "--l2",
-        type=float,
-        default=1e-4,
-        help="Define the L2 regularization for the network"
-    )
     args = parser.parse_args()
 
     # Load the data
-    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-    x_train = x_train.astype(np.float32) / 255
-    x_test = x_test.astype(np.float32) / 255
-    mu = x_train.mean(axis=0)
-    x_train -= mu
-    x_test -= mu
-    y_train = to_categorical(y_train, 10)
-    y_test = to_categorical(y_test, 10)
+    dset = ZCAWhitening(CIFAR10())
+    x_train, y_train = dset.train_data[:]
+    x_test, y_test = dset.test_data[:]
 
     # Build the model
     training_schedule = TrainingSchedule(args.time_budget)
-    model = resnet(args.depth, args.bn, args.l2)(x_train.shape[1:], 10)
+    model = wide_resnet(args.depth, args.width)(dset.shape, dset.output_size)
     model.compile(
         loss="categorical_crossentropy",
         optimizer=SGD(lr=training_schedule.lr, momentum=0.9),
