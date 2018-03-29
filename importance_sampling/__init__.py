@@ -13,4 +13,4 @@ __email__ = "angelos.katharopoulos@idiap.ch"
 __url__ = "http://www.idiap.ch/~katharas/importance-sampling/"
 __version__ = "0.5"
 
-from .training import ImportanceTraining, ApproximateImportanceTraining
+from .training import ImportanceTraining
