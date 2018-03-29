@@ -5,5 +5,5 @@
 
 from .metrics import MetricLayer, TripletLossLayer
 from .normalization import BatchRenormalization, LayerNormalization, \
-    StatsBatchNorm
+    StatsBatchNorm, GroupNormalization
 from .scores import GradientNormLayer, LossLayer

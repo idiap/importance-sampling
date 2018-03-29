@@ -8,7 +8,19 @@ from keras.engine import Layer
 from keras import initializers
 
 
-class BatchRenormalization(Layer):
+class _BaseNormalization(Layer):
+    """Implement utility functions for the normalization layers."""
+    def _moments(self, x, axes):
+        if K.backend() == "tensorflow":
+            return K.tf.nn.moments(x, axes, keep_dims=True)
+        else:
+            return (
+                K.mean(x, axis=axes, keepdims=True),
+                K.var(x, axis=axes, keepdims=True)
+            )
+
+
+class BatchRenormalization(_BaseNormalization):
     """Batch renormalization layer (Sergey Ioffe, 2017).
 
     # Arguments
@@ -159,7 +171,7 @@ class BatchRenormalization(Layer):
         return y
 
 
-class LayerNormalization(Layer):
+class LayerNormalization(_BaseNormalization):
     """LayerNormalization is a determenistic normalization layer to replace
     BN's stochasticity.
 
@@ -213,13 +225,13 @@ class LayerNormalization(Layer):
         assert not isinstance(x, list)
 
         # Compute the per sample statistics
-        mean = K.mean(x, self.reduction_axes, keepdims=True)
-        std = K.std(x, self.reduction_axes, keepdims=True) + self.epsilon
+        mean, var = self._moments(x, self.reduction_axes)
+        std = K.sqrt(var + self.epsilon)
 
         return self.gamma*(x-mean)/std + self.beta
 
 
-class StatsBatchNorm(Layer):
+class StatsBatchNorm(_BaseNormalization):
     """Use the accumulated statistics for batch norm instead of computing them
     for each minibatch.
 
@@ -270,13 +282,6 @@ class StatsBatchNorm(Layer):
 
         self.built = True
 
-    def _moments(self, x):
-        axes = range(len(K.int_shape(x))-1)
-        if K.backend() == "tensorflow":
-            return K.tf.nn.moments(x, axes)
-        else:
-            return K.mean(x, axis=axes), K.var(x, axis=axes)
-
     def call(self, inputs, training=None):
         x = inputs
         assert not isinstance(x, list)
@@ -293,10 +298,94 @@ class StatsBatchNorm(Layer):
 
         # Compute and update the minibatch statistics
         if self.update_stats:
-            mean, var = self._moments(x)
+            mean, var = self._moments(x, axes=range(len(K.int_shape(x))-1))
             self.add_update([
                 K.moving_average_update(self.moving_mean, mean, self.momentum),
                 K.moving_average_update(self.moving_variance, var, self.momentum)
             ], x)
 
         return xnorm
+
+
+class GroupNormalization(_BaseNormalization):
+    """GroupNormalization is an improvement to LayerNormalization presented in
+    https://arxiv.org/abs/1803.08494.
+
+    #Arguments
+        G: The channels per group in the normalization
+        epsilon: Added to the variance to avoid division with 0
+    """
+    def __init__(self, G=32, epsilon=1e-3, **kwargs):
+        super(GroupNormalization, self).__init__(**kwargs)
+
+        self.G = G
+        self.epsilon = epsilon
+
+    def build(self, input_shape):
+        # Get the number of dimensions and the channel axis
+        ndims = len(input_shape)
+        channel_axis = -1 if K.image_data_format() == "channels_last" else -3
+        shape = [1]*ndims
+        shape[channel_axis] = input_shape[channel_axis]
+
+        # Make sure everything is in order
+        assert None not in shape, "The channel axis must be defined"
+        assert shape[channel_axis] % self.G == 0, ("The channels must be "
+                                                   "divisible by the number "
+                                                   "of groups")
+
+        # Create the trainable weights
+        self.gamma = self.add_weight(
+            shape=shape,
+            name="gamma",
+            initializer=initializers.get("ones")
+        )
+        self.beta = self.add_weight(
+            shape=shape,
+            name="beta",
+            initializer=initializers.get("zeros")
+        )
+
+        # Keep the channel axis for later use
+        self.channel_axis = channel_axis
+        self.ndims = ndims
+
+        # We 're done
+        self.built = True
+
+    def call(self, inputs):
+        x = inputs
+        assert not isinstance(x, list)
+
+        # Get the shapes
+        G = self.G
+        channel_axis = self.channel_axis
+        ndims = self.ndims
+        original_shape = K.shape(x)
+        shape = [
+            original_shape[i]
+            for i in range(ndims)
+        ]
+        if channel_axis == -1:
+            shape[channel_axis] //= G
+            shape.append(G)
+            axes = sorted([
+                ndims + channel_axis - i
+                for i in range(3)
+            ])
+        else:
+            shape[channel_axis] //= G
+            shape.insert(channel_axis, G)
+            axes = sorted([
+                ndims + channel_axis + i
+                for i in range(3)
+            ])
+
+        # Do the group norm
+        x = K.reshape(x, shape)
+        mean, var = self._moments(x, axes)
+        std = K.sqrt(var + self.epsilon)
+        x = (x - mean)/std
+        x = K.reshape(x, original_shape)
+
+        return self.gamma*x + self.beta
