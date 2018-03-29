@@ -330,7 +330,7 @@ class ImportanceTraining(_UnbiasedImportanceTraining):
         )
 
 
-class ConstantVarianceTraining(_UnbiasedImportanceTraining):
+class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
     """Train a model faster by keeping the per iteration variance constant but
     decreasing the time.
 
@@ -341,12 +341,12 @@ class ConstantVarianceTraining(_UnbiasedImportanceTraining):
                for importance sampling
         layer: None or int or Layer, the layer to compute the gnorm with
     """
-    def __init__(self, model, backward_time=2.0, extra_samples=2.0,
+    def __init__(self, model, backward_time=2.0, extra_samples=0.2,
                  score="gnorm", layer=None):
         self._backward_time = backward_time
         self._extra_samples = extra_samples
 
-        super(ConstantTimeImportanceTraining, self).__init__(
+        super(ConstantVarianceImportanceTraining, self).__init__(
             model,
             score,
             layer
