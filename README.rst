@@ -9,9 +9,7 @@ arbitrary neural networks created with `Keras <http://keras.io>`__ using
 
     # Keras imports
 
-    from importance_sampling.training import ImportanceTraining, \
-        ApproximateImportanceTraining
-
+    from importance_sampling.training import ImportanceTraining
 
     x_train, y_train, x_val, y_val = load_data()
     model = create_keras_model()
@@ -39,6 +37,7 @@ Relevant Research
 
 **Ours**
 
+* Not All Samples Are Created Equal: Deep Learning with Importance Sampling [`preprint <https://arxiv.org/abs/1803.00942>`__]
 * Biased Importance Sampling for Deep Neural Network Training [`preprint <https://arxiv.org/abs/1706.00043>`__]
 
 **By others**
@@ -55,7 +54,6 @@ Normally if you already have a functional Keras installation you just need to
 
 * ``Keras`` > 2
 * A Keras backend among *Tensorflow*, *Theano* and *CNTK*
-* ``transparent-keras``
 * ``blinker``
 * ``numpy``
 * ``matplotlib``, ``seaborn``, ``scikit-learn`` are optional (used by the plot
@@ -74,7 +72,7 @@ Examples
 ---------
 
 In the ``examples`` folder you can find some Keras examples that have been edited
-(minimally) to use importance sampling.
+to use importance sampling.
 
 Code examples
 *************
@@ -86,7 +84,7 @@ neural networks with importance sampling.
 
     # Import what is needed to build the Keras model
     from keras import backend as K
-    from keras.layers import Dense
+    from keras.layers import Dense, Activation
     from keras.models import Sequential
 
     # Import a toy dataset and the importance training
@@ -99,7 +97,8 @@ neural networks with importance sampling.
         model = Sequential([
             Dense(40, activation="tanh", input_shape=(2,)),
             Dense(40, activation="tanh"),
-            Dense(1, activation="sigmoid")
+            Dense(1),
+            Activation("sigmoid")
         ])
 
         model.compile(
@@ -142,30 +141,26 @@ neural networks with importance sampling.
 Using the script
 ****************
 
-The following terminal commands train a small VGG-like network to ~0.55% error
-on MNIST (the numbers are from a CPU). It is not optimized, it just showcases
-that with importance sampling *6 times* less iterations are required in this
-case.
-
+The following terminal commands train a small VGG-like network to ~0.65% error
+on MNIST (the numbers are from a CPU).
 .. code::
 
     $ # Train a small cnn with mnist for 500 mini-batches using importance
-    $ # sampling with bias to achieve ~ 0.55% error (on the CPU)
+    $ # sampling with bias to achieve ~ 0.65% error (on the CPU).
     $ time ./importance_sampling.py \
     >   small_cnn \
-    >   oracle-loss \
+    >   oracle-gnorm \
     >   model \
     >   predicted \
     >   mnist \
     >   /tmp/is \
-    >   --hyperparams 'batch_size=i128;lr=f0.003;lr_reductions=I10000;k=f0.5' \
+    >   --hyperparams 'batch_size=i128;lr=f0.003;lr_reductions=I10000' \
     >   --train_for 500 --validate_every 500
-    real    6m16.476s
-    user    24m46.800s
-    sys     5m36.592s
+    real    1m41.985s
+    user    8m14.400s
+    sys     0m35.900s
     $
-    $ # And with uniform sampling to achieve the same accuracy (learning rate is
-    $ # smaller because with uniform sampling the variance is too big)
+    $ # And with uniform sampling to achieve ~ 0.9% error.
     $ time ./importance_sampling.py \
     >   small_cnn \
     >   oracle-loss \
@@ -173,8 +168,8 @@ case.
     >   unweighted \
     >   mnist \
     >   /tmp/uniform \
-    >   --hyperparams 'batch_size=i128;lr=f0.001;lr_reductions=I1000' \
+    >   --hyperparams 'batch_size=i128;lr=f0.003;lr_reductions=I10000' \
     >   --train_for 3000 --validate_every 3000
-    real    10m36.836s
-    user    47m36.316s
-    sys     7m14.412s
+    real    9m23.971s
+    user    47m32.600s
+    sys     3m4.188s
