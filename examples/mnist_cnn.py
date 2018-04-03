@@ -1,8 +1,4 @@
-'''Trains a simple convnet on the MNIST dataset.
-Gets to 99.25% test accuracy after 12 epochs
-(there is still a lot of margin for parameter tuning).
-16 seconds per epoch on a GRID K520 GPU.
-'''
+"""Trains a simple convnet on the MNIST dataset."""
 
 from __future__ import print_function
 import keras
@@ -22,7 +18,7 @@ if __name__ == "__main__":
 
     batch_size = 128
     num_classes = 10
-    epochs = 20
+    epochs = 10
 
     # input image dimensions
     img_rows, img_cols = 28, 28
