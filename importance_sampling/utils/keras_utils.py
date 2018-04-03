@@ -24,10 +24,11 @@ def weights_from_hdf5(f):
 
 
 def possible_weight_names(name, n=10):
+    name = name.decode()
     yield name
     parts = name.split("/")
     for i in range(1, n+1):
-        yield "{}_{}/{}".format(parts[0], i, parts[1])
+        yield str("{}_{}/{}".format(parts[0], i, parts[1]))
 
 
 def load_weights_by_name(f, layers):
