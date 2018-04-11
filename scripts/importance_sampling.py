@@ -28,13 +28,13 @@ from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
     CASIAWebFace2, PixelByPixelMNIST
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
-from importance_sampling.model_wrappers import OracleWrapper
+from importance_sampling.model_wrappers import OracleWrapper, SVRGWrapper
 from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
     PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler, \
     CacheSampler, ConditionalStartSampler, WarmupCondition, ExpCondition, \
-    TotalVariationCondition, VarianceReductionCondition
+    TotalVariationCondition, VarianceReductionCondition, SVRGSampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -257,6 +257,8 @@ def get_models_dictionary(hyperparams={}, reweighting=None):
             final_key = name_from_grid(items, prefix=k)
             wrappers[final_key] = partial(classes[k], **dict(items))
 
+    wrappers["svrg"] = SVRGWrapper
+
     return wrappers
 
 
@@ -344,6 +346,13 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             staleness=hyperparams.get("staleness", 3),
             cache_prob=hyperparams.get("cache_prob", 0.5),
             smooth=hyperparams.get("smooth", 0.2)
+        ),
+        "svrg": partial(
+            SVRGSampler,
+            ___,
+            reweighting,
+            model,
+            N=hyperparams.get("svrg_n", 1000)
         )
     }
 

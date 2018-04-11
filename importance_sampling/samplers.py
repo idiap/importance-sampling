@@ -919,3 +919,28 @@ class OnlineBatchSelectionSampler(ModelSampler):
             s = s_e0 * np.exp(np.log(s_eend/s_e0)/n_epochs) ** self._epoch
             s = 1.0 / np.exp(np.log(s)/N)
             self._scores = s**self._ranks
+
+
+class SVRGSampler(BaseSampler):
+    """Sample uniformly and work with the model wrapper so that we calculate
+    the batch gradient every N iterations."""
+    def __init__(self, dataset, reweighting, model, N=1000):
+        self._idxs = np.arange(len(dataset.train_data))
+        self._N = N
+        self._iteration = 0
+        self._model = model
+
+        super(SVRGSampler, self).__init__(dataset, reweighting)
+
+    def _get_samples_with_scores(self, batch_size):
+        if self._iteration % self._N == 0:
+            self._compute_batch_gradient(batch_size)
+        self._iteration += 1
+
+        return (self._idxs, None, None)
+
+    def _compute_batch_gradient(self, batch_size):
+        def batch_gen():
+            for s in range(0, len(self.dataset.train_data), batch_size):
+                yield self.dataset.train_data[s:s+batch_size]
+        self._model.update_grad(batch_gen())
