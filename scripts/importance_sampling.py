@@ -552,7 +552,8 @@ def main(argv):
             "wide_resnet_28_2", "wide_resnet_16_4_dropout",
             "wide_resnet_28_10_dropout", "lstm_timit", "pretrained_resnet50",
             "triplet_pre_densenet121", "pretrained_densenet121",
-            "triplet_pre_resnet50", "face_pre_resnet50", "lstm_mnist"
+            "triplet_pre_resnet50", "face_pre_resnet50", "lstm_mnist",
+            "svrg_nn"
         ],
         help="Choose the NN model to build"
     )
