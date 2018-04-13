@@ -34,7 +34,7 @@ from importance_sampling.samplers import ModelSampler, UniformSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
     PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler, \
     CacheSampler, ConditionalStartSampler, WarmupCondition, ExpCondition, \
-    TotalVariationCondition, VarianceReductionCondition, SVRGSampler
+    TotalVariationCondition, VarianceReductionCondition, SCSGSampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -347,12 +347,14 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             cache_prob=hyperparams.get("cache_prob", 0.5),
             smooth=hyperparams.get("smooth", 0.2)
         ),
-        "svrg": partial(
-            SVRGSampler,
+        "scsg": partial(
+            SCSGSampler,
             ___,
             reweighting,
             model,
-            N=hyperparams.get("svrg_n", 1000)
+            B=hyperparams.get("scsg_B", 0),
+            B_over_b=hyperparams.get("scsg_B_over_b", 1000),
+            B_rate=hyperparams.get("scsg_B_rate", 1.0)
         )
     }
 

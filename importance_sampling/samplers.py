@@ -921,26 +921,49 @@ class OnlineBatchSelectionSampler(ModelSampler):
             self._scores = s**self._ranks
 
 
-class SVRGSampler(BaseSampler):
-    """Sample uniformly and work with the model wrapper so that we calculate
-    the batch gradient every N iterations."""
-    def __init__(self, dataset, reweighting, model, N=1000):
-        self._idxs = np.arange(len(dataset.train_data))
-        self._N = N
+class SCSGSampler(BaseSampler):
+    """Implement [1] using the SVRG model wrapper.
+
+    SCSG is an online version of SVRG especially made for problems with
+    difficult to compute batch gradients.
+
+    [1]: Nonconvex Finite-Sum Optimization Via SCSG Methods
+
+    Arguments
+    ---------
+        dataset: The dataset to sample from
+        reweighting: In case we need to reweigh the samples (could be none in
+                     this case)
+        model: The model wrapper (must be implement the interface of
+               SVRGWrapper)
+        B: The initial large batch to sample (if None fall back to SVRG)
+        B_over_b: The number of minibatches in an iteration
+        B_rate: B*B_rate^(epoch) gives B for every epoch
+    """
+    def __init__(self, dataset, reweighting, model, B=1024, B_over_b=32,
+                 B_rate=1.0):
+        self.N = _get_dataset_length(dataset, default=1)
+        self.B = B or len(dataset.train_data)
+        self.B_over_b = B_over_b
+        self.B_rate = B_rate
         self._iteration = 0
+        self._idxs = np.arange(self.N)
         self._model = model
 
-        super(SVRGSampler, self).__init__(dataset, reweighting)
+        super(SCSGSampler, self).__init__(dataset, reweighting)
 
     def _get_samples_with_scores(self, batch_size):
-        if self._iteration % self._N == 0:
+        if self._iteration % self.B_over_b == 0:
             self._compute_batch_gradient(batch_size)
+            self.B = int(self.B * self.B_rate)
+            self.B = self.B if self.N == 1 else min(self.B, self.N)
         self._iteration += 1
 
         return (self._idxs, None, None)
 
     def _compute_batch_gradient(self, batch_size):
         def batch_gen():
-            for s in range(0, len(self.dataset.train_data), batch_size):
-                yield self.dataset.train_data[s:s+batch_size]
+            idxs = np.random.choice(self.N, self.B)
+            for s in range(0, self.B, batch_size):
+                yield self.dataset.train_data[idxs[s:s+batch_size]]
         self._model.update_grad(batch_gen())
