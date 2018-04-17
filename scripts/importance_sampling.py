@@ -28,7 +28,8 @@ from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
     CASIAWebFace2, PixelByPixelMNIST
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
-from importance_sampling.model_wrappers import OracleWrapper, SVRGWrapper
+from importance_sampling.model_wrappers import OracleWrapper, SVRGWrapper, \
+    KatyushaWrapper
 from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
@@ -258,6 +259,12 @@ def get_models_dictionary(hyperparams={}, reweighting=None):
             wrappers[final_key] = partial(classes[k], **dict(items))
 
     wrappers["svrg"] = SVRGWrapper
+    wrappers["katyusha"] = partial(
+        KatyushaWrapper,
+        ___,
+        t1=hyperparams.get("kat_t1", 0.5),
+        t2=hyperparams.get("kat_t2", 0.5)
+    )
 
     return wrappers
 
