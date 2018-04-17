@@ -8,7 +8,7 @@ from functools import partial
 from blinker import signal
 from keras import backend as K
 from keras.layers import Input, Layer, multiply
-from keras.models import Model
+from keras.models import Model, clone_model
 import numpy as np
 
 from .layers import GradientNormLayer, LossLayer, MetricLayer
@@ -303,3 +303,193 @@ class OracleWrapper(ModelWrapper):
         signal("is.training").send(result)
 
         return result
+
+
+class SVRGWrapper(ModelWrapper):
+    """Train using SVRG."""
+    def __init__(self, model):
+        self._augment(model)
+
+    def _augment(self, model):
+        # TODO: There is a lot of overlap with the OracleWrapper, merge some
+        #       functionality into a separate function or a parent class
+
+        # Extract info from the model
+        loss_function = model.loss
+        output_shape = K.int_shape(model.output)[1:]
+
+        # Create two identical models one with the current weights and one with
+        # the snapshot of the weights
+        self.model = model
+        self._snapshot = clone_model(model)
+
+        # Create the target variable and compute the losses and the metrics
+        inputs = [Input(shape=K.int_shape(x)[1:]) for x in model.inputs]
+        model_output = self.model(inputs)
+        snapshot_output = self._snapshot(inputs)
+        y_true = Input(shape=output_shape)
+        loss = LossLayer(loss_function)([y_true, model_output])
+        loss_snapshot = LossLayer(loss_function)([y_true, snapshot_output])
+        metrics = self.model.metrics or []
+        metrics = [
+            MetricLayer(metric)([y_true, model_output])
+            for metric in metrics
+        ]
+
+        # Make a set of variables that will be holding the batch gradient of
+        # the snapshot
+        self._batch_grad = [
+            K.zeros(K.int_shape(p))
+            for p in self.model.trainable_weights
+        ]
+
+        # Create an optimizer that computes the variance reduced gradients and
+        # get the updates
+        loss_mean = K.mean(loss)
+        loss_snapshot_mean = K.mean(loss_snapshot)
+        optimizer, updates = self._get_updates(
+            loss_mean,
+            loss_snapshot_mean,
+            self._batch_grad
+        )
+
+        # Create the training function and gradient computation function
+        metrics_updates = []
+        if hasattr(self.model, "metrics_updates"):
+            metrics_updates = self.model.metrics_updates
+        learning_phase = []
+        if loss._uses_learning_phase:
+            learning_phase.append(K.learning_phase())
+        inputs = inputs + [y_true] + learning_phase
+        outputs = [loss_mean, loss] + metrics
+
+        train_on_batch = K.function(
+            inputs=inputs,
+            outputs=outputs,
+            updates=updates + self.model.updates + metrics_updates
+        )
+        evaluate_on_batch = K.function(
+            inputs=inputs,
+            outputs=outputs,
+            updates=self.model.state_updates + metrics_updates
+        )
+        get_grad = K.function(
+            inputs=inputs,
+            outputs=K.gradients(loss_mean, self.model.trainable_weights),
+            updates=self.model.updates
+        )
+
+        self.optimizer = optimizer
+        self._train_on_batch = train_on_batch
+        self._evaluate_on_batch = evaluate_on_batch
+        self._get_grad = get_grad
+
+    def _get_updates(self, loss, loss_snapshot, batch_grad):
+        model = self.model
+        snapshot = self._snapshot
+        class Optimizer(self.model.optimizer.__class__):
+            def get_gradients(self, *args):
+                grad = K.gradients(loss, model.trainable_weights)
+                grad_snapshot = K.gradients(
+                    loss_snapshot,
+                    snapshot.trainable_weights
+                )
+
+                return [
+                    g - gs + bg
+                    for g, gs, bg in zip(grad, grad_snapshot, batch_grad)
+                ]
+
+        optimizer = Optimizer(**self.model.optimizer.get_config())
+        return optimizer, \
+            optimizer.get_updates(loss, self.model.trainable_weights)
+
+    def evaluate_batch(self, x, y):
+        outputs = self._evaluate_on_batch(_tolist(x) + [y, 0])
+        signal("is.evaluate_batch").send(outputs)
+
+        return np.hstack(outputs[1:])
+
+    def score_batch(self, x, y):
+        raise NotImplementedError()
+
+    def train_batch(self, x, y, w):
+        outputs = self._train_on_batch(_tolist(x) + [y, 1])
+
+        result = (
+            outputs[0],   # mean loss
+            outputs[2:],  # metrics
+            outputs[1]    # loss per sample
+        )
+        signal("is.training").send(result)
+
+        return result
+
+    def update_grad(self, sample_generator):
+        sample_generator = iter(sample_generator)
+        x, y = next(sample_generator)
+        N = len(y)
+        gradient_sum = self._get_grad(_tolist(x) + [y, 1])
+        for g_sum in gradient_sum:
+            g_sum *= N
+        for x, y in sample_generator:
+            grads = self._get_grad(_tolist(x) + [y, 1])
+            n = len(y)
+            for g_sum, g in zip(gradient_sum, grads):
+                g_sum += g*n
+            N += len(y)
+        for g_sum in gradient_sum:
+            g_sum /= N
+
+        K.batch_set_value(zip(self._batch_grad, gradient_sum))
+        self._snapshot.set_weights(self.model.get_weights())
+
+
+class KatyushaWrapper(SVRGWrapper):
+    """Implement Katyusha training on top of plain SVRG."""
+    def __init__(self, model, t1=0.5, t2=0.5):
+        self.t1 = K.variable(t1, name="tau1")
+        self.t2 = K.variable(t2, name="tau2")
+
+        super(KatyushaWrapper, self).__init__(model)
+
+    def _get_updates(self, loss, loss_snapshot, batch_grad):
+        optimizer = self.model.optimizer
+        t1, t2 = self.t1, self.t2
+        lr = optimizer.lr
+        
+        # create copies and local copies of the parameters
+        shapes = [K.int_shape(p) for p in self.model.trainable_weights]
+        x_tilde = [p for p in self._snapshot.trainable_weights]
+        z = [K.variable(p) for p in self.model.trainable_weights]
+        y = [K.variable(p) for p in self.model.trainable_weights]
+
+        # Get the gradients
+        grad = K.gradients(loss, self.model.trainable_weights)
+        grad_snapshot = K.gradients(
+            loss_snapshot,
+            self._snapshot.trainable_weights
+        )
+
+        # Collect the updates
+        p_plus = [
+            t1*zi + t2*x_tildei + (1-t1-t2)*yi
+            for zi, x_tildei, yi in
+            zip(z, x_tilde, y)
+        ]
+        vr_grad = [
+            gi + bg - gsi
+            for gi, bg, gsi in zip(grad, grad_snapshot, batch_grad)
+        ]
+        updates = [
+            K.update(yi, xi - lr * gi)
+            for yi, xi, gi in zip(y, p_plus, vr_grad)
+        ] + [
+            K.update(zi,  zi - lr * gi / t1)
+            for zi, xi, gi in zip(z, p_plus, vr_grad)
+        ] + [
+            K.update(p, xi)
+            for p, xi in zip(self.model.trainable_weights, p_plus)
+        ]
+
+        return optimizer, updates

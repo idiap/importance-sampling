@@ -51,6 +51,23 @@ def build_small_nn(input_shape, output_size):
     return model
 
 
+def build_svrg_nn(input_shape, output_size):
+    model = Sequential([
+        Flatten(input_shape=input_shape),
+        Dense(100, activation="tanh"),
+        Dense(10),
+        Activation("softmax")
+    ])
+
+    model.compile(
+        loss="categorical_crossentropy",
+        optimizer="adam",
+        metrics=["accuracy"]
+    )
+
+    return model
+
+
 def build_cnn(input_shape, output_size):
     kwargs = {
         "kernel_size": 3,
@@ -501,6 +518,7 @@ def triplet(modelf):
 def get(name):
     models = {
         "small_nn": build_small_nn,
+        "svrg_nn": build_svrg_nn,
         "small_cnn": build_small_cnn,
         "small_cnn_sq": build_small_cnn_squared,
         "cnn": build_cnn,

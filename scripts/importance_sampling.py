@@ -28,13 +28,14 @@ from importance_sampling.datasets import CIFAR10, CIFAR100, CIFARSanityCheck, \
     CASIAWebFace2, PixelByPixelMNIST
 from importance_sampling.reweighting import AdjustedBiasedReweightingPolicy, \
     BiasedReweightingPolicy, NoReweightingPolicy, CorrectingReweightingPolicy
-from importance_sampling.model_wrappers import OracleWrapper
+from importance_sampling.model_wrappers import OracleWrapper, SVRGWrapper, \
+    KatyushaWrapper
 from importance_sampling.samplers import ModelSampler, UniformSampler, \
     LSTMSampler, PerClassGaussian, LSTMComparisonSampler, \
     AdditiveSmoothingSampler, AdaptiveAdditiveSmoothingSampler, \
     PowerSmoothingSampler, OnlineBatchSelectionSampler, HistorySampler, \
     CacheSampler, ConditionalStartSampler, WarmupCondition, ExpCondition, \
-    TotalVariationCondition, VarianceReductionCondition
+    TotalVariationCondition, VarianceReductionCondition, SCSGSampler
 from importance_sampling.utils import tf_config
 from importance_sampling.utils.functional import compose, partial, ___
 
@@ -257,6 +258,14 @@ def get_models_dictionary(hyperparams={}, reweighting=None):
             final_key = name_from_grid(items, prefix=k)
             wrappers[final_key] = partial(classes[k], **dict(items))
 
+    wrappers["svrg"] = SVRGWrapper
+    wrappers["katyusha"] = partial(
+        KatyushaWrapper,
+        ___,
+        t1=hyperparams.get("kat_t1", 0.5),
+        t2=hyperparams.get("kat_t2", 0.5)
+    )
+
     return wrappers
 
 
@@ -344,6 +353,15 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             staleness=hyperparams.get("staleness", 3),
             cache_prob=hyperparams.get("cache_prob", 0.5),
             smooth=hyperparams.get("smooth", 0.2)
+        ),
+        "scsg": partial(
+            SCSGSampler,
+            ___,
+            reweighting,
+            model,
+            B=hyperparams.get("scsg_B", 0),
+            B_over_b=hyperparams.get("scsg_B_over_b", 1000),
+            B_rate=hyperparams.get("scsg_B_rate", 1.0)
         )
     }
 
@@ -543,7 +561,8 @@ def main(argv):
             "wide_resnet_28_2", "wide_resnet_16_4_dropout",
             "wide_resnet_28_10_dropout", "lstm_timit", "pretrained_resnet50",
             "triplet_pre_densenet121", "pretrained_densenet121",
-            "triplet_pre_resnet50", "face_pre_resnet50", "lstm_mnist"
+            "triplet_pre_resnet50", "face_pre_resnet50", "lstm_mnist",
+            "svrg_nn"
         ],
         help="Choose the NN model to build"
     )
