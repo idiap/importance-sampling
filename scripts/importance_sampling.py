@@ -275,6 +275,7 @@ def build_model(model, wrapper, dataset, hyperparams, reweighting):
             "sgd": SGD(
                 lr=hyperparams.get("lr", 0.001),
                 momentum=hyperparams.get("momentum", 0.0),
+                nesterov=hyperparams.get("nesterov", False),
                 clipnorm=hyperparams.get("clipnorm", None)
             ),
             "adam": Adam(

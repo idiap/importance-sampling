@@ -4,6 +4,7 @@
 #
 
 from functools import partial
+import sys
 
 from blinker import signal
 from keras import backend as K
@@ -173,6 +174,18 @@ class OracleWrapper(ModelWrapper):
             # the last has trainable weights
             skip_one = not bool(model.layers[-1].trainable_weights)
             last_layer = -2 if skip_one else -1
+
+            # If the last layer has trainable weights that means that we cannot
+            # automatically extract the preactivation tensor so we have to warn
+            # them because they might be missing out or they might not even
+            # have noticed
+            if last_layer == -1:
+                sys.stderr.write(("[WARNING]: The last layer has a fused "
+                                  "activation i.e. Dense(..., "
+                                  "activation=\"sigmoid\").\nIn order for the "
+                                  "preactivation to be automatically extracted "
+                                  "use a separate activation layer (see "
+                                  "examples).\n"))
 
             return model.layers[last_layer]
         except:

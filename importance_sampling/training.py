@@ -47,7 +47,8 @@ class _BaseImportanceTraining(object):
             sys.stderr.write(("[NOTICE]: You are using BatchNormalization "
                               "and/or Dropout.\nThose layers may affect the "
                               "importance calculations and you are advised "
-                              "to exchange them for LayerNormalization and L2 "
+                              "to exchange them for LayerNormalization or "
+                              "BatchNormalization in test mode and L2 "
                               "regularization.\n"))
 
     @property
