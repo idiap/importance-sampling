@@ -22,8 +22,9 @@ The main API that is provided is that of
 to seamlessly wrap your Keras models and perform importance sampling behind the
 scenes.
 
-*The following example can also be found in the [examples][github_examples]
-folder (mnist_mlp.py).*
+The example that follows is the minimal working example of importance
+sampling. Note the use of a **separate final activation layer** in order for the
+library to be able to get the pre-activation outputs.
 
 ```python
 from keras.datasets import mnist
