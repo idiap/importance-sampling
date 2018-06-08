@@ -11,13 +11,15 @@ import numpy as np
 
 from importance_sampling.training import ImportanceTraining, \
     BiasedImportanceTraining, ApproximateImportanceTraining, \
-    ConstantVarianceImportanceTraining
+    ConstantVarianceImportanceTraining, ConstantTimeImportanceTraining
+from importance_sampling.samplers import BaseSampler
 
 
 class TestTraining(unittest.TestCase):
     TRAININGS = [
         ImportanceTraining, BiasedImportanceTraining,
-        ApproximateImportanceTraining, ConstantVarianceImportanceTraining
+        ApproximateImportanceTraining, ConstantVarianceImportanceTraining,
+        ConstantTimeImportanceTraining
     ]
 
     def __init__(self, *args, **kwargs):
@@ -113,6 +115,31 @@ class TestTraining(unittest.TestCase):
         history = model.fit(np.random.rand(64, 2), np.random.rand(64, 2))
 
         self.assertGreater(history.history["loss"][0], 20.)
+
+    def test_on_sample(self):
+        calls = [0]
+        def on_sample(sampler, idxs, w, scores):
+            calls[0] += 1
+            self.assertTrue(isinstance(sampler, BaseSampler))
+            self.assertEqual(len(idxs), len(w))
+            self.assertEqual(len(idxs), len(scores))
+
+        model = Sequential([
+            Dense(10, activation="relu", input_shape=(2,)),
+            Dense(10, activation="relu"),
+            Dense(2)
+        ])
+        model.compile("sgd", "mse")
+
+        for Training in self.TRAININGS:
+            Training(model).fit(
+                np.random.rand(64, 2), np.random.rand(64, 2),
+                batch_size=16,
+                epochs=4,
+                on_sample=on_sample
+            )
+            self.assertEqual(16, calls[0])
+            calls[0] = 0
 
 
 if __name__ == "__main__":

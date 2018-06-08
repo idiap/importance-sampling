@@ -152,6 +152,13 @@ class OracleWrapper(ModelWrapper):
     SCORE = 3
     METRIC0 = 4
 
+    FUSED_ACTIVATION_WARNING = ("[WARNING]: The last layer has a fused "
+                                "activation i.e. Dense(..., "
+                                "activation=\"sigmoid\").\nIn order for the "
+                                "preactivation to be automatically extracted "
+                                "use a separate activation layer (see "
+                                "examples).\n")
+
     def __init__(self, model, reweighting, score="loss", layer=None):
         self.reweighting = reweighting
         self.layer = self._gnorm_layer(model, layer)
@@ -180,12 +187,9 @@ class OracleWrapper(ModelWrapper):
             # them because they might be missing out or they might not even
             # have noticed
             if last_layer == -1:
-                sys.stderr.write(("[WARNING]: The last layer has a fused "
-                                  "activation i.e. Dense(..., "
-                                  "activation=\"sigmoid\").\nIn order for the "
-                                  "preactivation to be automatically extracted "
-                                  "use a separate activation layer (see "
-                                  "examples).\n"))
+                config = model.layers[-1].get_config()
+                if config.get("activation", "linear") != "linear":
+                    sys.stderr.write(self.FUSED_ACTIVATION_WARNING)
 
             return model.layers[last_layer]
         except:

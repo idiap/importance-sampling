@@ -8,6 +8,7 @@ import sys
 from keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
 from keras.layers import Dropout, BatchNormalization
 import numpy as np
+from blinker import signal
 
 from .datasets import InMemoryDataset, GeneratorDataset
 from .model_wrappers import OracleWrapper
@@ -36,6 +37,10 @@ class _BaseImportanceTraining(object):
             score=score,
             layer=layer
         )
+        signal("is.sample").connect(self._on_sample)
+
+    def _on_sample(self, event):
+        self._latest_sample_event = event
 
     def _check_model(self, model):
         """Check if the model uses Dropout and BatchNorm and warn that it may
@@ -63,7 +68,8 @@ class _BaseImportanceTraining(object):
         raise NotImplementedError()
 
     def fit(self, x, y, batch_size=32, epochs=1, verbose=1, callbacks=None,
-            validation_split=0.0, validation_data=None, steps_per_epoch=None):
+            validation_split=0.0, validation_data=None, steps_per_epoch=None,
+            on_sample=None):
         """Create an `InMemoryDataset` instance with the given data and train
         the model using importance sampling for a given number of epochs.
 
@@ -83,6 +89,7 @@ class _BaseImportanceTraining(object):
                              trained model on without ever training on them
             steps_per_epoch: int or None, number of gradient updates before
                              considering an epoch has passed
+            on_sample: callable that accepts the sampler, idxs, w, scores
         Returns
         -------
             A Keras `History` object that contains information collected during
@@ -120,12 +127,14 @@ class _BaseImportanceTraining(object):
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             verbose=verbose,
-            callbacks=callbacks
+            callbacks=callbacks,
+            on_sample=on_sample
         )
 
     def fit_generator(self, train, steps_per_epoch, batch_size=32,
                       epochs=1, verbose=1, callbacks=None,
-                      validation_data=None, validation_steps=None):
+                      validation_data=None, validation_steps=None,
+                      on_sample=None):
         """Create a GeneratorDataset instance and train the model using
         importance sampling for a given number of epochs.
 
@@ -146,6 +155,7 @@ class _BaseImportanceTraining(object):
             validation_data: generator or tuple (inputs, targets)
             validation_steps: None or int, used only if validation_data is a
                               generator
+            on_sample: callable that accepts the sampler, idxs, w, scores
         """
         # Create the validation data to pass to the GeneratorDataset
         if validation_data is not None:
@@ -167,11 +177,12 @@ class _BaseImportanceTraining(object):
             epochs=epochs,
             steps_per_epoch=steps_per_epoch,
             verbose=verbose,
-            callbacks=callbacks
+            callbacks=callbacks,
+            on_sample=on_sample
         )
 
     def fit_dataset(self, dataset, steps_per_epoch=None, batch_size=32,
-                    epochs=1, verbose=1, callbacks=None):
+                    epochs=1, verbose=1, callbacks=None, on_sample=None):
         """Train the model on the given dataset for a given number of epochs.
 
         Arguments
@@ -186,6 +197,7 @@ class _BaseImportanceTraining(object):
             verbose: {0, >0}, whether to employ the progress bar Keras
                      callback or not
             callbacks: list of Keras callbacks to be called during training
+            on_sample: callable that accepts the sampler, idxs, w, scores
         """
         try:
             if len(dataset.train_data) < batch_size:
@@ -241,6 +253,14 @@ class _BaseImportanceTraining(object):
                 for l, o in zip(self._get_metric_names(), values):
                     batch_logs[l] = o
                 callbacks.on_batch_end(step, batch_logs)
+
+                if on_sample is not None:
+                    on_sample(
+                        sampler,
+                        self._latest_sample_event["idxs"],
+                        self._latest_sample_event["w"],
+                        self._latest_sample_event["predicted_scores"]
+                    )
 
                 if self.model.model.stop_training:
                     break
@@ -317,7 +337,8 @@ class ImportanceTraining(_UnbiasedImportanceTraining):
         # https://arxiv.org/abs/1803.00942
         B = large_batch
         b = batch_size
-        tau_th = self._tau_th or float(B + 3*b) / (3*b)
+        tau_th = float(B + 3*b) / (3*b)
+        tau_th = self._tau_th if self._tau_th is not None else tau_th
 
         return ConditionalStartSampler(
             ModelSampler(
