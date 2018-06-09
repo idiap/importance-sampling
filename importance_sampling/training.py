@@ -267,7 +267,7 @@ class _BaseImportanceTraining(object):
                 if on_scores is not None:
                     on_scores(
                         sampler,
-                        scores
+                        self._latest_scores
                     )
 
                 if on_sample is not None:
