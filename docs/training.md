@@ -14,6 +14,35 @@ wrapped_model.fit(x_train, y_train, epochs=10)
 model.evaluate(x_test, y_test)
 ```
 
+## Sampling probabilites and sample weights
+
+All of the `fit` methods accept two extra keyword arguments `on_sample` and
+`on_scores`. They are callables that allow the user of the library to have read
+access to the sampling probabilities weights and scores from the performed
+importance sampling. Their API is the following,
+
+```python
+on_sample(sampler, idxs, w, predicted_scores)
+```
+
+**Arguments**
+
+* **sampler**: The instance of BaseSampler being currently used
+* **idxs**: A numpy array containing the indices that were sampled
+* **w**: A numpy array containing the computed sample weights
+* **predicted_scores**: A numpy array containing the unnormalized importance
+  scores
+
+```python
+on_scores(sampler, scores)
+```
+
+**Arguments**
+
+* **sampler**: The instance of BaseSampler being currently used
+* **scores**: A numpy array containing all the importance scores from the
+  presampled data
+
 ## Bias
 
 `BiasedImportanceTraining` and `ApproximateImportanceTraining` classes accept a
@@ -60,7 +89,7 @@ Below, follows the list of methods with their arguments.
 ### fit
 
 ```
-fit(x, y, batch_size=32, epochs=1, verbose=1, callbacks=None, validation_split=0.0, validation_data=None, steps_per_epoch=None)
+fit(x, y, batch_size=32, epochs=1, verbose=1, callbacks=None, validation_split=0.0, validation_data=None, steps_per_epoch=None, on_sample=None, on_scores=None)
 ```
 
 **Arguments**
@@ -80,6 +109,8 @@ fit(x, y, batch_size=32, epochs=1, verbose=1, callbacks=None, validation_split=0
   evaluate the network on
 * **steps\_per\_epoch**: The number of gradient updates to do in order to
   assume that an epoch has passed
+* **on_sample**: A callable that accepts the sampler, idxs, w, scores
+* **on_scores**: A callable that accepts the sampler and scores
 
 **Returns**
 
@@ -88,7 +119,7 @@ A *Keras* `History` instance.
 ### fit\_generator
 
 ```
-fit_generator(train, steps_per_epoch, batch_size=32, epochs=1, verbose=1, callbacks=None, validation_data=None, validation_steps=None)
+fit_generator(train, steps_per_epoch, batch_size=32, epochs=1, verbose=1, callbacks=None, validation_data=None, validation_steps=None, on_sample=None, on_scores=None)
 ```
 
 **Arguments**
@@ -108,6 +139,8 @@ fit_generator(train, steps_per_epoch, batch_size=32, epochs=1, verbose=1, callba
   evaluate the network on or a generator yielding tuples of (data, targets)
 * **validation\_steps**: The number of tuples to extract from the validation
   data generator (if a generator is given)
+* **on_sample**: A callable that accepts the sampler, idxs, w, scores
+* **on_scores**: A callable that accepts the sampler and scores
 
 **Returns**
 
@@ -116,7 +149,7 @@ A *Keras* `History` instance.
 ### fit\_dataset
 
 ```
-fit_dataset(dataset, steps_per_epoch=None, batch_size=32, epochs=1, verbose=1, callbacks=None)
+fit_dataset(dataset, steps_per_epoch=None, batch_size=32, epochs=1, verbose=1, callbacks=None, on_sample=None, on_scores=None)
 ```
 
 The calls to the other `fit*` methods are delegated to this one after a
@@ -137,6 +170,8 @@ create a `Dataset` and what datasets are available by default.
   of callbacks
 * **callbacks**: A list of *Keras* callbacks for logging, changing training
   parameters, monitoring, etc.
+* **on_sample**: A callable that accepts the sampler, idxs, w, scores
+* **on_scores**: A callable that accepts the sampler and scores
 
 **Returns**
 

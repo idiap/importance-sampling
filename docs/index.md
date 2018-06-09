@@ -22,33 +22,37 @@ The main API that is provided is that of
 to seamlessly wrap your Keras models and perform importance sampling behind the
 scenes.
 
-*The following example can also be found in the [examples][github_examples]
-folder (mnist_mlp.py).*
+The example that follows is the minimal working example of importance
+sampling. Note the use of a **separate final activation layer** in order for the
+library to be able to get the pre-activation outputs.
 
 ```python
 from keras.datasets import mnist
 from keras.models import Sequential
-from keras.layers import Dense, Dropout
+from keras.layers import Dense, Activation
+import numpy as np
 
 from importance_sampling.training import ImportanceTraining
 
 # Load mnist
-...
-...
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+x_train = x_train.reshape(-1, 784).astype(np.float32) / 255
+y_train = np.eye(10).astype(np.float32)[y_train]
+x_test = x_test.reshape(-1, 784).astype(np.float32) / 255
+y_test = np.eye(10).astype(np.float32)[y_test]
 
 # Build your NN normally
 model = Sequential()
 model.add(Dense(512, activation='relu', input_shape=(784,)))
-model.add(Dropout(0.2))
 model.add(Dense(512, activation='relu'))
-model.add(Dropout(0.2))
-model.add(Dense(10, activation='softmax'))
+model.add(Dense(10))
+model.add(Activation("softmax"))
 model.compile("adam", "categorical_crossentropy", metrics=["accuracy"])
 
 # Train with importance sampling
 history = ImportanceTraining(model).fit(
     x_train, y_train,
-    batch_size=128, epochs=3,
+    batch_size=128, epochs=5,
     verbose=1,
     validation_data=(x_test, y_test)
 )

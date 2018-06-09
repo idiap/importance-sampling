@@ -84,26 +84,28 @@ neural networks with importance sampling.
 
     # Import what is needed to build the Keras model
     from keras import backend as K
-    from keras.layers import Dense, Activation
+    from keras.layers import Dense, Activation, Flatten
     from keras.models import Sequential
 
     # Import a toy dataset and the importance training
-    from importance_sampling.datasets import CanevetICML2016
+    from importance_sampling.datasets import MNIST
     from importance_sampling.training import ImportanceTraining
 
 
     def create_nn():
         """Build a simple fully connected NN"""
         model = Sequential([
-            Dense(40, activation="tanh", input_shape=(2,)),
+            Flatten(input_shape=(28, 28, 1)),
             Dense(40, activation="tanh"),
-            Dense(1),
-            Activation("sigmoid")
+            Dense(40, activation="tanh"),
+            Dense(10),
+            Activation("softmax") # Needs to be separate to automatically
+                                  # get the preactivation outputs
         ])
 
         model.compile(
             optimizer="adam",
-            loss="binary_crossentropy",
+            loss="categorical_crossentropy",
             metrics=["accuracy"]
         )
 
@@ -112,10 +114,9 @@ neural networks with importance sampling.
 
     if __name__ == "__main__":
         # Load the data
-        dataset = CanevetICML2016(N=1024)
+        dataset = MNIST()
         x_train, y_train = dataset.train_data[:]
         x_test, y_test = dataset.test_data[:]
-        y_train, y_test = y_train.argmax(axis=1), y_test.argmax(axis=1)
 
         # Create the NN and keep the initial weights
         model = create_nn()
@@ -129,12 +130,12 @@ neural networks with importance sampling.
             validation_data=(x_test, y_test)
         )
 
-        # Train with biased importance sampling
+        # Train with importance sampling
         model.set_weights(weights)
         K.set_value(model.optimizer.lr, 0.01)
-        ImportanceTraining(model, forward_batch_size=1024).fit(
+        ImportanceTraining(model).fit(
             x_train, y_train,
-            batch_size=64, epochs=3,
+            batch_size=64, epochs=2,
             validation_data=(x_test, y_test)
         )
 
