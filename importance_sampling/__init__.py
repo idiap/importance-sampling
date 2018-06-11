@@ -11,6 +11,6 @@ __license__ = "MIT"
 __maintainer__ = "Angelos Katharopoulos"
 __email__ = "angelos.katharopoulos@idiap.ch"
 __url__ = "http://www.idiap.ch/~katharas/importance-sampling/"
-__version__ = "0.6"
+__version__ = "0.7"
 
 from .training import ImportanceTraining
