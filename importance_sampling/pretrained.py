@@ -5,7 +5,6 @@
 
 """Replace the models provided by the Keras applications module"""
 
-from keras.applications.resnet50 import WEIGHTS_PATH as RESNET50_WEIGHTS_PATH
 from keras.layers import \
     Activation,          \
     AveragePooling2D,    \
@@ -19,6 +18,10 @@ from keras.models import Model
 from keras.utils.data_utils import get_file
 
 from .layers import StatsBatchNorm
+
+
+RESNET50_WEIGHTS_PATH = ('https://github.com/fchollet/deep-learning-models/'
+                         'releases/download/v0.2/')
 
 
 def ResNet50(weights="imagenet", input_shape=(224, 224, 3), output_size=1000,
