@@ -16,8 +16,9 @@ from .layers import GradientNormLayer, LossLayer, MetricLayer
 from .reweighting import UNBIASED
 from .utils.functional import compose
 
-def _tolist(x):
-    if not isinstance(x, (list, tuple)):
+
+def _tolist(x, acceptable_iterables=(list, tuple)):
+    if not isinstance(x, acceptable_iterables):
         x = [x]
     return x
 
@@ -201,7 +202,7 @@ class OracleWrapper(ModelWrapper):
         # Extract some info from the model
         loss = model.loss
         optimizer = model.optimizer.__class__(**model.optimizer.get_config())
-        output_shape = K.int_shape(model.output)[1:]
+        output_shape = model.get_output_shape_at(0)[1:]
         if isinstance(loss, str) and loss.startswith("sparse"):
             output_shape = output_shape[:-1] + (1,)
 
@@ -215,11 +216,11 @@ class OracleWrapper(ModelWrapper):
         pred_score = Input(shape=(reweighting.weight_size,))
 
         # Create a loss layer and a score layer
-        loss_tensor = LossLayer(loss)([y_true, model.output])
+        loss_tensor = LossLayer(loss)([y_true, model.get_output_at(0)])
         score_tensor = _get_scoring_layer(
             score,
             y_true,
-            model.output,
+            model.get_output_at(0),
             loss,
             self.layer,
             model
@@ -237,14 +238,14 @@ class OracleWrapper(ModelWrapper):
         # Create the metric layers
         metrics = model.metrics or []
         metrics = [
-            MetricLayer(metric)([y_true, model.output])
+            MetricLayer(metric)([y_true, model.get_output_at(0)])
             for metric in metrics
         ]
 
         # Create a model for plotting and providing access to things such as
         # trainable_weights etc.
         new_model = Model(
-            inputs=_tolist(model.input) + [y_true, pred_score],
+            inputs=_tolist(model.get_input_at(0)) + [y_true, pred_score],
             outputs=[weighted_loss_model]
         )
 
@@ -259,7 +260,8 @@ class OracleWrapper(ModelWrapper):
         learning_phase = []
         if weighted_loss_model._uses_learning_phase:
             learning_phase.append(K.learning_phase())
-        inputs = _tolist(model.input) + [y_true, pred_score] + learning_phase
+        inputs = _tolist(model.get_input_at(0)) + [y_true, pred_score] + \
+            learning_phase
         outputs = [
             weighted_loss_mean,
             loss_tensor,
@@ -333,7 +335,7 @@ class SVRGWrapper(ModelWrapper):
 
         # Extract info from the model
         loss_function = model.loss
-        output_shape = K.int_shape(model.output)[1:]
+        output_shape = model.get_output_shape_at(0)[1:]
 
         # Create two identical models one with the current weights and one with
         # the snapshot of the weights
@@ -341,7 +343,10 @@ class SVRGWrapper(ModelWrapper):
         self._snapshot = clone_model(model)
 
         # Create the target variable and compute the losses and the metrics
-        inputs = [Input(shape=K.int_shape(x)[1:]) for x in model.inputs]
+        inputs = [
+            Input(shape=K.int_shape(x)[1:])
+            for x in _tolist(model.get_input_at(0))
+        ]
         model_output = self.model(inputs)
         snapshot_output = self._snapshot(inputs)
         y_true = Input(shape=output_shape)
@@ -474,7 +479,7 @@ class KatyushaWrapper(SVRGWrapper):
         optimizer = self.model.optimizer
         t1, t2 = self.t1, self.t2
         lr = optimizer.lr
-        
+
         # create copies and local copies of the parameters
         shapes = [K.int_shape(p) for p in self.model.trainable_weights]
         x_tilde = [p for p in self._snapshot.trainable_weights]
