@@ -955,15 +955,15 @@ class SCSGSampler(BaseSampler):
     def _get_samples_with_scores(self, batch_size):
         if self._iteration % self.B_over_b == 0:
             self._compute_batch_gradient(batch_size)
-            self.B = int(self.B * self.B_rate)
-            self.B = self.B if self.N == 1 else min(self.B, self.N)
+            self.B *= self.B_rate
+            self.B = min(self.B, self.N) if self.N > 1 else self.B
         self._iteration += 1
 
         return (self._idxs, None, None)
 
     def _compute_batch_gradient(self, batch_size):
         def batch_gen():
-            idxs = np.random.choice(self.N, self.B)
-            for s in range(0, self.B, batch_size):
-                yield self.dataset.train_data[idxs[s:s+batch_size]]
+            np.random.shuffle(self._idxs)
+            for s in range(0, int(self.B), batch_size):
+                yield self.dataset.train_data[self._idxs[s:s+batch_size]]
         self._model.update_grad(batch_gen())

@@ -11,11 +11,11 @@ import numpy as np
 from blinker import signal
 
 from .datasets import InMemoryDataset, GeneratorDataset
-from .model_wrappers import OracleWrapper
+from .model_wrappers import OracleWrapper, SVRGWrapper
 from .samplers import ConditionalStartSampler, VarianceReductionCondition, \
     AdaptiveAdditiveSmoothingSampler, AdditiveSmoothingSampler, ModelSampler, \
-    LSTMSampler, ConstantVarianceSampler, ConstantTimeSampler
-from .reweighting import BiasedReweightingPolicy
+    LSTMSampler, ConstantVarianceSampler, ConstantTimeSampler, SCSGSampler
+from .reweighting import BiasedReweightingPolicy, NoReweightingPolicy
 from .utils.functional import ___, compose, partial
 
 
@@ -533,3 +533,53 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
     def fit_generator(*args, **kwargs):
         raise NotImplementedError("ApproximateImportanceTraining doesn't "
                                   "support generator training")
+
+
+class SVRG(_BaseImportanceTraining):
+    """Train a model with Stochastic Variance Reduced Gradient descent.
+
+    See [1, 2] for what this trainer implements.
+
+    [1] Johnson, R. and Zhang, T., 2013. Accelerating stochastic gradient
+        descent using predictive variance reduction. In Advances in neural
+        information processing systems (pp. 315-323).
+    [2] Lei, L. and Jordan, M., 2017, April. Less than a Single Pass:
+        Stochastically Controlled Stochastic Gradient. In Artificial
+        Intelligence and Statistics (pp. 148-156).
+
+    Arguments
+    ---------
+        model: The Keras model to train
+        B: float, the number of samples to use for estimating the average
+           gradient (whole dataset used in case of 0). Given as a factor of the
+           batch_size.
+        B_rate: float, multiply B with B_rate after every update
+        B_over_b: int, How many updates to perform before recalculating the
+                  average gradient
+    """
+    def __init__(self, model, B=10., B_rate=1.0, B_over_b=128):
+        self._B = B
+        self._B_rate = B_rate
+        self._B_over_b = B_over_b
+
+        self.original_model = model
+        self.model = SVRGWrapper(model)
+
+    @property
+    def reweighting(self):
+        """SVRG does not need sample weights so it returns the
+        NoReweightingPolicy()"""
+        return NoReweightingPolicy()
+
+    def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
+        """Create the SCSG sampler"""
+        B = int(self._B * batch_size)
+        
+        return SCSGSampler(
+            dataset,
+            self.reweighting,
+            self.model,
+            B,
+            self._B_over_b,
+            self._B_rate
+        )
