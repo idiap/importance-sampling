@@ -1586,5 +1586,325 @@ Test loss: 0.467169301844
 Test accuracy: 0.9213
 </code></pre>
 
+## MNIST SVRG
+
+The library also supports training with stochastic variance reduced gradient
+methods. Specifically, we support
+
+- SVRG - [Accelerating stochastic gradient descent using predictive variance
+  reduction][svrg] by Johnson R. and Zhang T.
+- SCSG - [Less than a single pass: Stochastically controlled stochastic
+  gradient][scsg] by Lei L. and Jordan M.
+
+See the [Training](training.md) section for details on how to use the
+`importance_sampling.training.SVRG` class.
+
+This example trains a simple linear classifier for the MNIST digits.
+By default, the code trains with SVRG in the following manner. Firstly, we
+perform 20 epochs with plain SGD without momentum. Then, we perform 5 epochs
+with SVRG but recompute the full gradient enough times so that the 5 epochs are
+approximately equal to 80 SGD epochs in terms of gradient evaluations. Passing
+the `--uniform` argument, the example just trains for 100 epochs with plain SGD
+without momentum. The results, as usual, are depicted in the following figure
+and terminal output.
+
+<div class="fig col-2">
+<img src="../img/mnist_svrg_training.png" alt="Training Loss">
+<img src="../img/mnist_svrg_test.png" alt="Test Accuracy">
+<span>Results of training a logistic regression model to classify the MNIST
+digits. We train with simple SGD with uniform sampling and no momentum (blue)
+and with SVRG (orange).</span>
+</div>
+
+<pre style="height:300px; overflow-y: scroll;"><code class="bash">$ python mnist_svrg.py
+Using TensorFlow backend.
+60000 train samples
+10000 test samples
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+dense_1 (Dense)              (None, 10)                7850      
+_________________________________________________________________
+activation_1 (Activation)    (None, 10)                0         
+=================================================================
+Total params: 7,850
+Trainable params: 7,850
+Non-trainable params: 0
+_________________________________________________________________
+Train on 60000 samples, validate on 10000 samples
+Epoch 1/20
+60000/60000 [==============================] - 2s 39us/step - loss: 0.3770 - acc: 0.8943 - val_loss: 0.3064 - val_acc: 0.9116
+Epoch 2/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.3026 - acc: 0.9147 - val_loss: 0.2842 - val_acc: 0.9222
+Epoch 3/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2893 - acc: 0.9186 - val_loss: 0.2836 - val_acc: 0.9195
+Epoch 4/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2821 - acc: 0.9207 - val_loss: 0.2804 - val_acc: 0.9219
+Epoch 5/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2777 - acc: 0.9215 - val_loss: 0.2826 - val_acc: 0.9231
+Epoch 6/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2739 - acc: 0.9234 - val_loss: 0.2774 - val_acc: 0.9209
+Epoch 7/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2706 - acc: 0.9247 - val_loss: 0.2811 - val_acc: 0.9221
+Epoch 8/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2682 - acc: 0.9248 - val_loss: 0.2873 - val_acc: 0.9165
+Epoch 9/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2668 - acc: 0.9259 - val_loss: 0.2758 - val_acc: 0.9232
+Epoch 10/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2648 - acc: 0.9264 - val_loss: 0.2765 - val_acc: 0.9238
+Epoch 11/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2638 - acc: 0.9270 - val_loss: 0.2918 - val_acc: 0.9180
+Epoch 12/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2619 - acc: 0.9269 - val_loss: 0.2826 - val_acc: 0.9227
+Epoch 13/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2611 - acc: 0.9274 - val_loss: 0.2676 - val_acc: 0.9259
+Epoch 14/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2592 - acc: 0.9272 - val_loss: 0.2710 - val_acc: 0.9223
+Epoch 15/20
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2588 - acc: 0.9282 - val_loss: 0.2734 - val_acc: 0.9246
+Epoch 16/20
+60000/60000 [==============================] - 2s 38us/step - loss: 0.2575 - acc: 0.9277 - val_loss: 0.2769 - val_acc: 0.9224
+Epoch 17/20
+60000/60000 [==============================] - 2s 38us/step - loss: 0.2580 - acc: 0.9285 - val_loss: 0.2817 - val_acc: 0.9221
+Epoch 18/20
+60000/60000 [==============================] - 2s 38us/step - loss: 0.2557 - acc: 0.9291 - val_loss: 0.2796 - val_acc: 0.9207
+Epoch 19/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2555 - acc: 0.9287 - val_loss: 0.2749 - val_acc: 0.9262
+Epoch 20/20
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2548 - acc: 0.9286 - val_loss: 0.2830 - val_acc: 0.9214
+Epoch 1/5
+3750/3750 [==============================] - 18s 5ms/step - loss: 0.2323 - accuracy: 0.9370 - val_loss: 0.2659 - val_accuracy: 0.9254
+Epoch 2/5
+3750/3750 [==============================] - 17s 4ms/step - loss: 0.2293 - accuracy: 0.9376 - val_loss: 0.2658 - val_accuracy: 0.9257
+Epoch 3/5
+3750/3750 [==============================] - 18s 5ms/step - loss: 0.2360 - accuracy: 0.9358 - val_loss: 0.2658 - val_accuracy: 0.9260
+Epoch 4/5
+3750/3750 [==============================] - 17s 4ms/step - loss: 0.2379 - accuracy: 0.9342 - val_loss: 0.2658 - val_accuracy: 0.9259
+Epoch 5/5
+3750/3750 [==============================] - 18s 5ms/step - loss: 0.2339 - accuracy: 0.9361 - val_loss: 0.2659 - val_accuracy: 0.9258
+Test loss: 0.2659175738602877
+Test accuracy: 0.9258
+$ python mnist_svrg.py --uniform
+Using TensorFlow backend.
+60000 train samples
+10000 test samples
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+dense_1 (Dense)              (None, 10)                7850      
+_________________________________________________________________
+activation_1 (Activation)    (None, 10)                0         
+=================================================================
+Total params: 7,850
+Trainable params: 7,850
+Non-trainable params: 0
+_________________________________________________________________
+Train on 60000 samples, validate on 10000 samples
+Epoch 1/100
+60000/60000 [==============================] - 2s 39us/step - loss: 0.3761 - acc: 0.8936 - val_loss: 0.3012 - val_acc: 0.9152
+Epoch 2/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.3020 - acc: 0.9141 - val_loss: 0.2961 - val_acc: 0.9147
+Epoch 3/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2891 - acc: 0.9184 - val_loss: 0.2789 - val_acc: 0.9241
+Epoch 4/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2822 - acc: 0.9203 - val_loss: 0.2800 - val_acc: 0.9192
+Epoch 5/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2769 - acc: 0.9227 - val_loss: 0.2801 - val_acc: 0.9207
+Epoch 6/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2736 - acc: 0.9233 - val_loss: 0.2802 - val_acc: 0.9193
+Epoch 7/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2708 - acc: 0.9238 - val_loss: 0.2737 - val_acc: 0.9231
+Epoch 8/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2682 - acc: 0.9247 - val_loss: 0.2698 - val_acc: 0.9251
+Epoch 9/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2668 - acc: 0.9250 - val_loss: 0.2744 - val_acc: 0.9217
+Epoch 10/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2650 - acc: 0.9265 - val_loss: 0.2743 - val_acc: 0.9239
+Epoch 11/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2632 - acc: 0.9265 - val_loss: 0.2745 - val_acc: 0.9249
+Epoch 12/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2616 - acc: 0.9272 - val_loss: 0.2750 - val_acc: 0.9230
+Epoch 13/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2610 - acc: 0.9262 - val_loss: 0.2806 - val_acc: 0.9219
+Epoch 14/100
+60000/60000 [==============================] - 2s 35us/step - loss: 0.2594 - acc: 0.9277 - val_loss: 0.2731 - val_acc: 0.9220
+Epoch 15/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2583 - acc: 0.9280 - val_loss: 0.2798 - val_acc: 0.9208
+Epoch 16/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2581 - acc: 0.9280 - val_loss: 0.2791 - val_acc: 0.9232
+Epoch 17/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2573 - acc: 0.9281 - val_loss: 0.2745 - val_acc: 0.9251
+Epoch 18/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2565 - acc: 0.9286 - val_loss: 0.2782 - val_acc: 0.9232
+Epoch 19/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2555 - acc: 0.9293 - val_loss: 0.2717 - val_acc: 0.9241
+Epoch 20/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2546 - acc: 0.9287 - val_loss: 0.2737 - val_acc: 0.9258
+Epoch 21/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2537 - acc: 0.9296 - val_loss: 0.2781 - val_acc: 0.9240
+Epoch 22/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2531 - acc: 0.9298 - val_loss: 0.2734 - val_acc: 0.9257
+Epoch 23/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2524 - acc: 0.9308 - val_loss: 0.2796 - val_acc: 0.9256
+Epoch 24/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2521 - acc: 0.9300 - val_loss: 0.2746 - val_acc: 0.9247
+Epoch 25/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2514 - acc: 0.9293 - val_loss: 0.2760 - val_acc: 0.9253
+Epoch 26/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2506 - acc: 0.9298 - val_loss: 0.2713 - val_acc: 0.9263
+Epoch 27/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2511 - acc: 0.9303 - val_loss: 0.2796 - val_acc: 0.9250
+Epoch 28/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2499 - acc: 0.9301 - val_loss: 0.2799 - val_acc: 0.9246
+Epoch 29/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2496 - acc: 0.9300 - val_loss: 0.2774 - val_acc: 0.9243
+Epoch 30/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2496 - acc: 0.9306 - val_loss: 0.2758 - val_acc: 0.9231
+Epoch 31/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2490 - acc: 0.9306 - val_loss: 0.2789 - val_acc: 0.9219
+Epoch 32/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2489 - acc: 0.9301 - val_loss: 0.2733 - val_acc: 0.9257
+Epoch 33/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2489 - acc: 0.9307 - val_loss: 0.2720 - val_acc: 0.9265
+Epoch 34/100
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2475 - acc: 0.9310 - val_loss: 0.2777 - val_acc: 0.9240
+Epoch 35/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2480 - acc: 0.9313 - val_loss: 0.2740 - val_acc: 0.9249
+Epoch 36/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2471 - acc: 0.9315 - val_loss: 0.2758 - val_acc: 0.9256
+Epoch 37/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2467 - acc: 0.9314 - val_loss: 0.2791 - val_acc: 0.9247
+Epoch 38/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2467 - acc: 0.9316 - val_loss: 0.2802 - val_acc: 0.9223
+Epoch 39/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2466 - acc: 0.9312 - val_loss: 0.2786 - val_acc: 0.9229
+Epoch 40/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2461 - acc: 0.9315 - val_loss: 0.2767 - val_acc: 0.9250
+Epoch 41/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2462 - acc: 0.9307 - val_loss: 0.2770 - val_acc: 0.9271
+Epoch 42/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2451 - acc: 0.9325 - val_loss: 0.2791 - val_acc: 0.9241
+Epoch 43/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2448 - acc: 0.9315 - val_loss: 0.2781 - val_acc: 0.9231
+Epoch 44/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2454 - acc: 0.9310 - val_loss: 0.2840 - val_acc: 0.9234
+Epoch 45/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2451 - acc: 0.9316 - val_loss: 0.2884 - val_acc: 0.9198
+Epoch 46/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2446 - acc: 0.9316 - val_loss: 0.2778 - val_acc: 0.9248
+Epoch 47/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2440 - acc: 0.9323 - val_loss: 0.2934 - val_acc: 0.9190
+Epoch 48/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2441 - acc: 0.9319 - val_loss: 0.2818 - val_acc: 0.9243
+Epoch 49/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2438 - acc: 0.9319 - val_loss: 0.2836 - val_acc: 0.9225
+Epoch 50/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2434 - acc: 0.9327 - val_loss: 0.2816 - val_acc: 0.9254
+Epoch 51/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2440 - acc: 0.9309 - val_loss: 0.2850 - val_acc: 0.9231
+Epoch 52/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2426 - acc: 0.9318 - val_loss: 0.2813 - val_acc: 0.9259
+Epoch 53/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2436 - acc: 0.9329 - val_loss: 0.2833 - val_acc: 0.9210
+Epoch 54/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2431 - acc: 0.9326 - val_loss: 0.2760 - val_acc: 0.9253
+Epoch 55/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2420 - acc: 0.9339 - val_loss: 0.2856 - val_acc: 0.9240
+Epoch 56/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2424 - acc: 0.9312 - val_loss: 0.2775 - val_acc: 0.9232
+Epoch 57/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2423 - acc: 0.9328 - val_loss: 0.2800 - val_acc: 0.9244
+Epoch 58/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2421 - acc: 0.9329 - val_loss: 0.2777 - val_acc: 0.9251
+Epoch 59/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2421 - acc: 0.9328 - val_loss: 0.2863 - val_acc: 0.9250
+Epoch 60/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2419 - acc: 0.9320 - val_loss: 0.2827 - val_acc: 0.9246
+Epoch 61/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2417 - acc: 0.9322 - val_loss: 0.2942 - val_acc: 0.9214
+Epoch 62/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2409 - acc: 0.9322 - val_loss: 0.2781 - val_acc: 0.9241
+Epoch 63/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2414 - acc: 0.9327 - val_loss: 0.2836 - val_acc: 0.9231
+Epoch 64/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2410 - acc: 0.9327 - val_loss: 0.2859 - val_acc: 0.9222
+Epoch 65/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2407 - acc: 0.9336 - val_loss: 0.2771 - val_acc: 0.9251
+Epoch 66/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2407 - acc: 0.9330 - val_loss: 0.2875 - val_acc: 0.9236
+Epoch 67/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2405 - acc: 0.9329 - val_loss: 0.2849 - val_acc: 0.9236
+Epoch 68/100
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2405 - acc: 0.9327 - val_loss: 0.2786 - val_acc: 0.9264
+Epoch 69/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2404 - acc: 0.9330 - val_loss: 0.2850 - val_acc: 0.9230
+Epoch 70/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2401 - acc: 0.9332 - val_loss: 0.2837 - val_acc: 0.9243
+Epoch 71/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2402 - acc: 0.9331 - val_loss: 0.2854 - val_acc: 0.9233
+Epoch 72/100
+60000/60000 [==============================] - 2s 37us/step - loss: 0.2396 - acc: 0.9337 - val_loss: 0.2940 - val_acc: 0.9217
+Epoch 73/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2397 - acc: 0.9337 - val_loss: 0.2920 - val_acc: 0.9232
+Epoch 74/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2399 - acc: 0.9333 - val_loss: 0.2835 - val_acc: 0.9236
+Epoch 75/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2399 - acc: 0.9330 - val_loss: 0.2821 - val_acc: 0.9233
+Epoch 76/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2391 - acc: 0.9330 - val_loss: 0.2923 - val_acc: 0.9227
+Epoch 77/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2399 - acc: 0.9332 - val_loss: 0.2800 - val_acc: 0.9245
+Epoch 78/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2388 - acc: 0.9334 - val_loss: 0.2896 - val_acc: 0.9237
+Epoch 79/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2386 - acc: 0.9336 - val_loss: 0.2880 - val_acc: 0.9212
+Epoch 80/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2381 - acc: 0.9336 - val_loss: 0.2867 - val_acc: 0.9229
+Epoch 81/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2388 - acc: 0.9338 - val_loss: 0.2844 - val_acc: 0.9240
+Epoch 82/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2392 - acc: 0.9333 - val_loss: 0.2932 - val_acc: 0.9195
+Epoch 83/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2379 - acc: 0.9332 - val_loss: 0.2907 - val_acc: 0.9207
+Epoch 84/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2381 - acc: 0.9334 - val_loss: 0.2863 - val_acc: 0.9223
+Epoch 85/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2380 - acc: 0.9337 - val_loss: 0.2891 - val_acc: 0.9219
+Epoch 86/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2380 - acc: 0.9337 - val_loss: 0.2866 - val_acc: 0.9241
+Epoch 87/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2381 - acc: 0.9343 - val_loss: 0.2864 - val_acc: 0.9240
+Epoch 88/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2385 - acc: 0.9331 - val_loss: 0.2847 - val_acc: 0.9238
+Epoch 89/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2374 - acc: 0.9339 - val_loss: 0.2889 - val_acc: 0.9226
+Epoch 90/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2377 - acc: 0.9338 - val_loss: 0.2876 - val_acc: 0.9213
+Epoch 91/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2377 - acc: 0.9335 - val_loss: 0.2851 - val_acc: 0.9244
+Epoch 92/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2372 - acc: 0.9337 - val_loss: 0.2827 - val_acc: 0.9232
+Epoch 93/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2373 - acc: 0.9337 - val_loss: 0.2843 - val_acc: 0.9248
+Epoch 94/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2371 - acc: 0.9340 - val_loss: 0.2900 - val_acc: 0.9232
+Epoch 95/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2375 - acc: 0.9337 - val_loss: 0.2867 - val_acc: 0.9242
+Epoch 96/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2374 - acc: 0.9328 - val_loss: 0.2912 - val_acc: 0.9234
+Epoch 97/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2371 - acc: 0.9342 - val_loss: 0.2834 - val_acc: 0.9242
+Epoch 98/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2371 - acc: 0.9335 - val_loss: 0.2912 - val_acc: 0.9201
+Epoch 99/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2367 - acc: 0.9345 - val_loss: 0.2897 - val_acc: 0.9226
+Epoch 100/100
+60000/60000 [==============================] - 2s 36us/step - loss: 0.2364 - acc: 0.9341 - val_loss: 0.2916 - val_acc: 0.9224
+Test loss: 0.29161700524389744
+Test accuracy: 0.9224
+</code></pre>
+
 [github_is]: https://github.com/idiap/importance-sampling
 [models.py]: https://github.com/idiap/importance-sampling/blob/master/importance_sampling/models.py
+[svrg]: https://papers.nips.cc/paper/4937-accelerating-stochastic-gradient-descent-using-predictive-variance-reduction.pdf
+[scsg]: https://arxiv.org/abs/1609.03261
