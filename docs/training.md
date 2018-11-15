@@ -260,3 +260,30 @@ See the corresponding [paper](https://arxiv.org/abs/1706.00043) for details.
   average training loss
 * **presample**: Defines the number of samples to compute the importance for
   before creating each batch
+
+## SVRG
+
+```
+importance_sampling.training.SVRG(model, B=10., B_rate=1.0, B_over_b=128)
+```
+
+`SVRG` trains a Keras model with stochastic variance reduced gradient.
+Specifically it implements the following two variants of SVRG
+
+* SVRG - [Accelerating stochastic gradient descent using predictive variance
+  reduction][svrg] by Johnson R. and Zhang T.
+* SCSG - [Less than a single pass: Stochastically controlled stochastic
+  gradient][scsg] by Lei L. and Jordan M.
+
+**Arguments**
+
+* **model**: The Keras model to train
+* **B**: The number of batches to use to compute the full batch gradient. For
+  SVRG this should be either a very large number or 0. For SCSG it can be any
+  number larger than 1
+* **B\_rate**: A factor to multiply `B` with after every update
+* **B\_over\_b**: Compute a batch gradient after every `B_over_b` gradient
+  updates.
+
+[svrg]: https://papers.nips.cc/paper/4937-accelerating-stochastic-gradient-descent-using-predictive-variance-reduction.pdf
+[scsg]: https://arxiv.org/abs/1609.03261
