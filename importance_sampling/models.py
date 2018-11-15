@@ -424,7 +424,7 @@ def wide_resnet(L, k, drop_rate=0.0):
             return inner
 
         # According to the paper L = 6*n+4
-        n = (L-4)/6
+        n = int((L-4)/6)
 
         group0 = Convolution2D(16, 3, padding="same", use_bias=False,
                                kernel_regularizer=l2(5e-4))
