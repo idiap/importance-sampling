@@ -20,8 +20,9 @@ from keras.utils.data_utils import get_file
 from .layers import StatsBatchNorm
 
 
-RESNET50_WEIGHTS_PATH = ('https://github.com/fchollet/deep-learning-models/'
-                         'releases/download/v0.2/')
+RESNET50_WEIGHTS_PATH = ("https://github.com/fchollet/deep-learning-models/"
+                         "releases/download/v0.2/"
+                         "resnet50_weights_tf_dim_ordering_tf_kernels.h5")
 
 
 def ResNet50(weights="imagenet", input_shape=(224, 224, 3), output_size=1000,
