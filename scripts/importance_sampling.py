@@ -7,6 +7,8 @@
 """This script aims to be the single experiment script for fast prototyping of
 importance sampling methods"""
 
+from __future__ import print_function
+
 import argparse
 from bisect import bisect_right
 from contextlib import contextmanager
@@ -69,7 +71,7 @@ def create_dict(x):
     passing arbitrary parameters to the script"""
     def array(t):
         def inner(x):
-            return map(t, x.split("!"))
+            return list(map(t, x.split("!")))
         return inner
 
     types = {
@@ -89,7 +91,7 @@ def iterate_grid(grid):
     def items(param):
         for x in param[1]:
             yield param[0], x
-    return product(*map(items, grid))
+    return product(*list(map(items, grid)))
 
 
 def name_from_grid(values, prefix="", sep="-"):
@@ -103,7 +105,7 @@ def name_from_grid(values, prefix="", sep="-"):
         return str(x)
     return sep.join(
         ([prefix] if prefix else []) +
-        map(tostr, values)
+        list(map(tostr, values))
     )
 
 
@@ -276,16 +278,16 @@ def build_model(model, wrapper, dataset, hyperparams, reweighting):
                 lr=hyperparams.get("lr", 0.001),
                 momentum=hyperparams.get("momentum", 0.0),
                 nesterov=hyperparams.get("nesterov", False),
-                clipnorm=hyperparams.get("clipnorm", None)
+                clipnorm=hyperparams.get("clipnorm", 0)
             ),
             "adam": Adam(
                 lr=hyperparams.get("lr", 0.001),
-                clipnorm=hyperparams.get("clipnorm", None)
+                clipnorm=hyperparams.get("clipnorm", 0)
             ),
             "rmsprop": RMSprop(
                 lr=hyperparams.get("lr", 0.001),
                 decay=hyperparams.get("lr_decay", 0.0),
-                clipnorm=hyperparams.get("clipnorm", None)
+                clipnorm=hyperparams.get("clipnorm", 0)
             )
         }[opt]
 
@@ -403,7 +405,7 @@ def get_samplers_dictionary(model, hyperparams={}, reweighting=None):
             samplers[sampler]
         )
 
-    for sampler in samplers.keys():
+    for sampler in list(samplers.keys()):
         if "model" in sampler or "lstm" in sampler:
             samplers["warmup-"+sampler] = compose(
                 partial(
@@ -463,7 +465,7 @@ class PredictionLogger(object):
             return
         self._scores = metrics[2].ravel()
         for s, s_hat, y in zip(self._scores, self._scores_hat, self._y):
-            print >>self.fd, s, s_hat, y
+            print(s, s_hat, y, file=self.fd)
         self.fd.flush()
 
 
@@ -484,8 +486,8 @@ class EvaluationLogger(object):
         self.fd_train_scores = open(train_scores, "w")
 
         # Write the headers
-        print >>self.fd_test, "Crossent", "Accuracy"
-        print >>self.fd_train, "Crossent", "Accuracy"
+        print("Crossent", "Accuracy", file=self.fd_test)
+        print("Crossent", "Accuracy", file=self.fd_train)
 
         # Variable that tells us to which file we are writing
         self._test = True
@@ -498,13 +500,13 @@ class EvaluationLogger(object):
 
     def on_evaluate(self, metrics):
         fd = self.fd_test if self._test else self.fd_train
-        print >>fd, first_or_self(metrics[0]), first_or_self(metrics[1])
+        print(first_or_self(metrics[0]), first_or_self(metrics[1]), file=fd)
         fd.flush()
 
     def on_batch(self, metrics):
         fd = self.fd_test_scores if self._test else self.fd_train_scores
         for score in metrics[-1].ravel():
-            print >>fd, score
+            print(score, file=fd)
         fd.flush()
 
 
@@ -516,12 +518,12 @@ def metrics_progress(output_directory, filename):
     program anyway
     """
     fd = open(path.join(output_directory, filename), "w")
-    print >>fd, "Crossent", "Accuracy"
+    print("Crossent", "Accuracy", file=fd)
     def inner(metrics):
         losses, metrics = metrics[:2]
         loss = losses.mean()
         acc = metrics[0].mean()
-        print >>fd, loss, acc
+        print(loss, acc, file=fd)
         fd.flush()
     return inner
 
@@ -531,12 +533,12 @@ def log_lines(output_directory, filename, values_slice=slice(None),
     """Log the values passed in as a parameter to a file as space separated"""
     fd = open(path.join(output_directory, filename), "w")
     if initial:
-        print >>fd, " ".join(map(str, initial))
+        print(" ".join(list(map(str, initial))), file=fd)
     def inner(values):
         if not multiple:
             values = [values]
         for v in values:
-            print >>fd, " ".join(map(str, v[values_slice]))
+            print(" ".join(list(map(str, v[values_slice]))), file=fd)
         fd.flush()
     return inner
 
@@ -569,12 +571,12 @@ def main(argv):
     )
     parser.add_argument(
         "wrapper",
-        choices=get_models_dictionary().keys(),
+        choices=list(get_models_dictionary().keys()),
         help="Choose what to wrap the model with to compute importance scores"
     )
     parser.add_argument(
         "sampler",
-        choices=get_samplers_dictionary(None).keys(),
+        choices=list(get_samplers_dictionary(None).keys()),
         help="Choose the sampler to draw training data"
     )
     parser.add_argument(
