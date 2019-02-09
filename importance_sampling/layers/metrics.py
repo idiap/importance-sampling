@@ -43,7 +43,8 @@ class MetricLayer(Layer):
 
     def call(self, inputs, mask=None):
         # Compute the metric
-        metric = self.metric_func(*inputs)
+        metric = K.map_fn(lambda x: self.metric_func(x[0],x[1])
+                         , K.concatenate(inputs, axis=-1))
         if K.int_shape(metric)[-1] == 1:
             metric = K.squeeze(metric, axis=-1)
 
