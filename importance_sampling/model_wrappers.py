@@ -160,13 +160,13 @@ class OracleWrapper(ModelWrapper):
                                 "use a separate activation layer (see "
                                 "examples).\n")
 
-    def __init__(self, model, reweighting, score="loss", layer=None):
+    def __init__(self, model, reweighting, score="loss", layer=None, batch_metrics = []):
         self.reweighting = reweighting
         self.layer = self._gnorm_layer(model, layer)
 
         # Augment the model with reweighting, scoring etc
         # Save the new model and the training functions in member variables
-        self._augment_model(model, score, reweighting)
+        self._augment_model(model, score, reweighting, batch_metrics)
 
     def _gnorm_layer(self, model, layer):
         # If we were given a layer then use it directly
@@ -198,7 +198,7 @@ class OracleWrapper(ModelWrapper):
             # importance
             return None
 
-    def _augment_model(self, model, score, reweighting):
+    def _augment_model(self, model, score, reweighting, batch_metrics):
         # Extract some info from the model
         loss = model.loss
         optimizer = model.optimizer.__class__(**model.optimizer.get_config())
@@ -238,10 +238,10 @@ class OracleWrapper(ModelWrapper):
         # Create the metric layers
         metrics = model.metrics or []
         metrics = [
-            MetricLayer(metric)([y_true, model.get_output_at(0)])
+            MetricLayer(metric, batch_metrics)([y_true, model.get_output_at(0)])
             for metric in metrics
         ]
-
+ 
         # Create a model for plotting and providing access to things such as
         # trainable_weights etc.
         new_model = Model(
@@ -268,7 +268,6 @@ class OracleWrapper(ModelWrapper):
             weighted_loss,
             score_tensor
         ] + metrics
-
         train_on_batch = K.function(
             inputs=inputs,
             outputs=outputs,
@@ -292,9 +291,7 @@ class OracleWrapper(ModelWrapper):
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
         inputs = _tolist(x) + [y, dummy_weights] + [0]
         outputs = self._evaluate_on_batch(inputs)
-
         signal("is.evaluate_batch").send(outputs)
-
         return np.hstack([outputs[self.LOSS]] + outputs[self.METRIC0:])
 
     def score_batch(self, x, y):

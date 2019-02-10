@@ -20,7 +20,7 @@ from .utils.functional import ___, compose, partial
 
 
 class _BaseImportanceTraining(object):
-    def __init__(self, model, score="gnorm", layer=None):
+    def __init__(self, model, score="gnorm", layer=None, batch_metrics=[]):
         """Abstract base class for training a model using importance sampling.
 
         Arguments
@@ -33,9 +33,10 @@ class _BaseImportanceTraining(object):
         self.original_model = model
         self.model = OracleWrapper(
             model,
-            self.reweighting,
+            reweighting=self.reweighting,
             score=score,
-            layer=layer
+            layer=layer,
+            batch_metrics=batch_metrics
         )
         signal("is.sample").connect(self._on_sample)
         signal("is.score").connect(self._on_scores)
@@ -312,10 +313,13 @@ class _BaseImportanceTraining(object):
 
 
 class _UnbiasedImportanceTraining(_BaseImportanceTraining):
-    def __init__(self, model, score="gnorm", layer=None):
+    def __init__(self, model, score="gnorm", layer=None, batch_metrics=[]):
         self._reweighting = BiasedReweightingPolicy(1.0)  # no bias
 
-        super(_UnbiasedImportanceTraining, self).__init__(model, score, layer)
+        super(_UnbiasedImportanceTraining, self).__init__(model, 
+                                                score, 
+                                                layer, 
+                                                batch_metrics)
 
     @property
     def reweighting(self):
@@ -339,13 +343,14 @@ class ImportanceTraining(_UnbiasedImportanceTraining):
         layer: None or int or Layer, the layer to compute the gnorm with
     """
     def __init__(self, model, presample=3.0, tau_th=None,
-                 forward_batch_size=None, score="gnorm", layer=None):
+                 forward_batch_size=None, score="gnorm", layer=None,
+                 batch_metrics= []):
         self._presample = presample
         self._tau_th = tau_th
         self._forward_batch_size = forward_batch_size
 
         # Call the parent to wrap the model
-        super(ImportanceTraining, self).__init__(model, score, layer)
+        super(ImportanceTraining, self).__init__(model, score, layer, batch_metrics)
 
     def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
         # Configure the sampler
@@ -382,14 +387,15 @@ class ConstantVarianceImportanceTraining(_UnbiasedImportanceTraining):
         layer: None or int or Layer, the layer to compute the gnorm with
     """
     def __init__(self, model, backward_time=2.0, extra_samples=0.2,
-                 score="gnorm", layer=None):
+                 score="gnorm", layer=None, batch_metrics= []):
         self._backward_time = backward_time
         self._extra_samples = extra_samples
 
         super(ConstantVarianceImportanceTraining, self).__init__(
             model,
             score,
-            layer
+            layer,
+            batch_metrics
         )
 
     def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
@@ -413,13 +419,14 @@ class ConstantTimeImportanceTraining(_UnbiasedImportanceTraining):
                for importance sampling
         layer: None or int or Layer, the layer to compute the gnorm with
     """
-    def __init__(self, model, backward_time=2.0, score="gnorm", layer=None):
+    def __init__(self, model, backward_time=2.0, score="gnorm", layer=None, batch_metrics= []):
         self._backward_time = backward_time
 
         super(ConstantTimeImportanceTraining, self).__init__(
             model,
             score,
-            layer
+            layer,
+            batch_metrics
         )
 
     def sampler(self, dataset, batch_size, steps_per_epoch, epochs):
@@ -449,12 +456,12 @@ class BiasedImportanceTraining(_BaseImportanceTraining):
                             during scoring
     """
     def __init__(self, model, k=0.5, smooth=0.0, adaptive_smoothing=False,
-                 presample=256, forward_batch_size=128):
+                 presample=256, forward_batch_size=128, batch_metrics= []):
         # Create the reweighting policy
         self._reweighting = BiasedReweightingPolicy(k)
 
         # Call the parent to wrap the model
-        super(BiasedImportanceTraining, self).__init__(model)
+        super(BiasedImportanceTraining, self).__init__(model, batch_metrics=batch_metrics)
 
         # Create the sampler factory, the workhorse of the whole deal :-)
         adaptive_smoothing_factory = partial(
@@ -500,12 +507,12 @@ class ApproximateImportanceTraining(_BaseImportanceTraining):
         presample: int, the number of samples to presample for scoring
     """
     def __init__(self, model, k=0.5, smooth=0.0, adaptive_smoothing=False,
-                 presample=2048):
+                 presample=2048, batch_metrics=[]):
         # Create the reweighting policy
         self._reweighting = BiasedReweightingPolicy(k)
 
         # Call the parent to wrap the model
-        super(ApproximateImportanceTraining, self).__init__(model)
+        super(ApproximateImportanceTraining, self).__init__(model, batch_metrics=batch_metrics)
 
         # Create the sampler factory, the workhorse of the whole deal :-)
         adaptive_smoothing_factory = partial(
