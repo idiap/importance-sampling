@@ -302,6 +302,8 @@ class _BaseImportanceTraining(object):
 
     def _get_metric_names(self):
         metrics = self.original_model.metrics or []
+        if metrics:
+           metrics = [m if isinstance(m, str) else m.__name__ for m in metrics]
         return (
             ["loss"] +
             list(map(str, metrics)) +
