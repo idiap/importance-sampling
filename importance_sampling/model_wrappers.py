@@ -286,7 +286,41 @@ class OracleWrapper(ModelWrapper):
         self._train_on_batch = train_on_batch
         self._evaluate_on_batch = evaluate_on_batch
 
+    def _normalize_metric_size(self, metric_values, n_samples):
+        """Normalize the metric size so that they can be aggregated per sample.
+        Fixes #18.
+
+        Arguments
+        ---------
+            metric_values: array, the output return by Keras
+            n_samples: int, the number of samples in our batch
+        """
+        shape = metric_values.shape
+
+        # If everything is correct return early
+        if len(shape) == 2 and shape[0] == n_samples:
+            return metric_values
+
+        # Case 1: The metrics are of shape (n_samples,)
+        if len(shape) == 1 and shape[0] == n_samples:
+            return np.expand_dims(metric_values, -1)
+
+        # Case 2: The metrics have size 1
+        if metric_values.size == 1:
+            return np.tile(
+                metric_values.reshape(1, 1),
+                (n_samples, 1)
+            )
+
+        # Report the error in a normal way
+        raise ValueError(("A metric function returns a non scalar value. "
+                          "In order to use the automatic aggregation method "
+                          "for evaluation on the validation set the metrics "
+                          "need to be scalar per sample or per batch but the "
+                          "shape is {}.".format(shape)))
+
     def evaluate_batch(self, x, y):
+        n_samples = len(y)
         if len(y.shape) == 1:
             y = np.expand_dims(y, axis=1)
         dummy_weights = np.ones((y.shape[0], self.reweighting.weight_size))
@@ -295,7 +329,10 @@ class OracleWrapper(ModelWrapper):
 
         signal("is.evaluate_batch").send(outputs)
 
-        return np.hstack([outputs[self.LOSS]] + outputs[self.METRIC0:])
+        return np.hstack([
+            self._normalize_metric_size(m, n_samples)
+            for m in [outputs[self.LOSS]] + outputs[self.METRIC0:]
+        ])
 
     def score_batch(self, x, y):
         if len(y.shape) == 1:

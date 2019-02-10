@@ -301,10 +301,16 @@ class _BaseImportanceTraining(object):
         return self.history
 
     def _get_metric_names(self):
+        def name(x):
+            try:
+                return x.__name__
+            except AttributeError:
+                return str(x)
+
         metrics = self.original_model.metrics or []
         return (
             ["loss"] +
-            list(map(str, metrics)) +
+            list(map(name, metrics)) +
             ["score"]
         )
 

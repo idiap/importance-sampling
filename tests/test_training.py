@@ -5,6 +5,7 @@
 
 import unittest
 
+from keras import backend as K
 from keras.layers import Dense, Input, dot
 from keras.models import Model, Sequential
 import numpy as np
@@ -140,6 +141,25 @@ class TestTraining(unittest.TestCase):
             )
             self.assertEqual(16, calls[0])
             calls[0] = 0
+
+    def test_metrics(self):
+        def const_metric(a, b):
+            return K.tf.constant(1, dtype=K.tf.float32)
+
+        model = Sequential([
+            Dense(10, activation="relu", input_shape=(2,)),
+            Dense(10, activation="relu"),
+            Dense(2)
+        ])
+        model.compile("sgd", "mse", metrics=[const_metric])
+
+        for Training in self.TRAININGS:
+            Training(model).fit(
+                np.random.rand(64, 2), np.random.rand(64, 2),
+                batch_size=16,
+                epochs=4,
+                validation_data=[np.random.rand(64, 2), np.random.rand(64, 2)]
+            )
 
 
 if __name__ == "__main__":
