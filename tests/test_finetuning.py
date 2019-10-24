@@ -6,7 +6,7 @@
 import unittest
 
 from keras.applications import Xception
-from keras.layers import Dense
+from keras.layers import Dense, Activation
 from keras.models import Model
 import numpy as np
 
@@ -27,7 +27,8 @@ class TestFinetuning(unittest.TestCase):
             include_top=False,
             pooling="avg"
         )
-        y = Dense(10, activation="softmax")(base.output)
+        y = Dense(10)(base.output)
+        y = Activation("softmax")(y)
         model = Model(base.input, y)
         model.compile("sgd", "categorical_crossentropy", metrics=["accuracy"])
 

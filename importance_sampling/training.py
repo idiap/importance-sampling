@@ -319,10 +319,18 @@ class _BaseImportanceTraining(object):
 
     @property
     def metrics_names(self):
+        def name(x):
+            if isinstance(x, str):
+                return x
+            if hasattr(x, "name"):
+                return x.name
+            if hasattr(x, "__name__"):
+                return x.__name__
+            return str(x)
         metrics = self.original_model.metrics or []
         return (
             ["loss"] +
-            [m if isinstance(m, str) else m.__name__ for m in metrics] +
+            [name(m) for m in metrics] +
             ["score"]
         )
 

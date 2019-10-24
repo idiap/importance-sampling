@@ -46,6 +46,8 @@ class MetricLayer(Layer):
         metric = self.metric_func(*inputs)
         if K.int_shape(metric)[-1] == 1:
             metric = K.squeeze(metric, axis=-1)
+        if len(K.int_shape(metric)) == 0:
+            metric = K.ones(K.shape(inputs[0])[0]) * metric
 
         # Apply the mask if needed
         if mask is not None:

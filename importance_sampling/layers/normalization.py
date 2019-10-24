@@ -13,13 +13,10 @@ from ..utils.tf import tf
 class _BaseNormalization(Layer):
     """Implement utility functions for the normalization layers."""
     def _moments(self, x, axes):
-        if K.backend() == "tensorflow":
-            return tf.nn.moments(x, axes, keep_dims=True)
-        else:
-            return (
-                K.mean(x, axis=axes, keepdims=True),
-                K.var(x, axis=axes, keepdims=True)
-            )
+        return (
+            K.mean(x, axis=axes, keepdims=True),
+            K.var(x, axis=axes, keepdims=True)
+        )
 
 
 class BatchRenormalization(_BaseNormalization):
