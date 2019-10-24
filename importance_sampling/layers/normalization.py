@@ -8,11 +8,14 @@ from keras.engine import Layer
 from keras import initializers
 
 
+from ..utils.tf_config import tf
+
+
 class _BaseNormalization(Layer):
     """Implement utility functions for the normalization layers."""
     def _moments(self, x, axes):
         if K.backend() == "tensorflow":
-            return K.tf.nn.moments(x, axes, keep_dims=True)
+            return tf.nn.moments(x, axes, keep_dims=True)
         else:
             return (
                 K.mean(x, axis=axes, keepdims=True),
@@ -101,7 +104,7 @@ class BatchRenormalization(_BaseNormalization):
     def _moments(self, x):
         axes = range(len(K.int_shape(x))-1)
         if K.backend() == "tensorflow":
-            return K.tf.nn.moments(x, axes)
+            return tf.nn.moments(x, axes)
         else:
             # TODO: Maybe the following can be optimized a bit?
             mean = K.mean(K.reshape(x, (-1, self.dim)), axis=0)
@@ -111,7 +114,7 @@ class BatchRenormalization(_BaseNormalization):
 
     def _clip(self, x, x_min, x_max):
         if K.backend() == "tensorflow":
-            return K.tf.clip_by_value(x, x_min, x_max)
+            return tf.clip_by_value(x, x_min, x_max)
         else:
             return K.maximum(K.minimum(x, x_max), x_min)
 

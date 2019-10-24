@@ -12,19 +12,11 @@ import os
 from keras import backend as K
 
 
-def with_tensorflow(f):
-    def inner(*args, **kwargs):
-        if K.backend() == "tensorflow":
-            return f(K.tf, *args, **kwargs)
-    return inner
-
-@with_tensorflow
-def set_random_seed(tf, seed):
-    return tf.set_random_seed(seed)
+tf = None
 
 
 if K.backend() == "tensorflow":
-    tf = K.tf
+    import tensorflow as tf
 
     TF_THREADS = int(os.environ.get("TF_THREADS", cpu_count()))
 
@@ -35,3 +27,15 @@ if K.backend() == "tensorflow":
     )
     session = tf.Session(config=config)
     K.set_session(session)
+
+
+def with_tensorflow(f):
+    def inner(*args, **kwargs):
+        if K.backend() == "tensorflow":
+            return f(tf, *args, **kwargs)
+    return inner
+
+
+@with_tensorflow
+def set_random_seed(tf, seed):
+    return tf.set_random_seed(seed)
