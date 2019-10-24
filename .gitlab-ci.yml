@@ -4,15 +4,6 @@ stages:
 
 test:
     script:
-        - virtualenv -p python2 venv2
-        - source venv2/bin/activate
-        - python -V
-        - pip install --upgrade pip
-        - pip install tensorflow
-        - pip install h5py
-        - pip install -e .
-        - python -m unittest discover -s tests/ -v
-        - deactivate
         - virtualenv -p python3 venv3
         - source venv3/bin/activate
         - python -V

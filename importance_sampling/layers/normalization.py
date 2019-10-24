@@ -7,8 +7,7 @@ from keras import backend as K
 from keras.engine import Layer
 from keras import initializers
 
-
-from ..utils.tf_config import tf
+from ..utils.tf import tf
 
 
 class _BaseNormalization(Layer):

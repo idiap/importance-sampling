@@ -10,14 +10,10 @@ from multiprocessing import cpu_count
 import os
 
 from keras import backend as K
-
-
-tf = None
+from .tf import tf
 
 
 if K.backend() == "tensorflow":
-    import tensorflow as tf
-
     TF_THREADS = int(os.environ.get("TF_THREADS", cpu_count()))
 
     config = tf.ConfigProto(
