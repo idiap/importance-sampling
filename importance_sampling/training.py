@@ -243,9 +243,7 @@ class _BaseImportanceTraining(object):
         if verbose > 0:
             callbacks += [ProgbarLogger(count_mode="steps")]
         callbacks = CallbackList(callbacks)
-        #TODO: Should we be making it possible to call back a different model
-        #      than self.model.model?
-        callbacks.set_model(self.model.model)
+        callbacks.set_model(self.original_model)
         callbacks.set_params({
             "epochs": epochs,
             "steps": steps_per_epoch,
@@ -261,7 +259,7 @@ class _BaseImportanceTraining(object):
 
         # Start the training loop
         epoch = 0
-        self.model.model.stop_training = False
+        self.original_model.stop_training = False
         callbacks.on_train_begin()
         while epoch < epochs:
             callbacks.on_epoch_begin(epoch)
@@ -295,7 +293,7 @@ class _BaseImportanceTraining(object):
                         self._latest_sample_event["predicted_scores"]
                     )
 
-                if self.model.model.stop_training:
+                if self.original_model.stop_training:
                     break
 
             # Evaluate now that an epoch passed
@@ -310,7 +308,7 @@ class _BaseImportanceTraining(object):
                     for l, o in zip(self.metrics_names, val)
                 }
             callbacks.on_epoch_end(epoch, epoch_logs)
-            if self.model.model.stop_training:
+            if self.original_model.stop_training:
                 break
             epoch += 1
         callbacks.on_train_end()
