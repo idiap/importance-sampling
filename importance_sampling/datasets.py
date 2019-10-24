@@ -345,16 +345,44 @@ class GeneratorDataset(BaseDataset):
                 batch = cache.popleft()
                 cv.notify()
                 cnt += len(batch[1])
+                if len(batch[1].shape)==1:
+                    batch[1] = np.expand_dims(batch[1], -1)
                 if isinstance(batch[0], (list, tuple)):
                     batches.append(list(batch[0]) + [batch[1]])
                 else:
                     batches.append(batch)
 
-        xy = tuple(map(np.vstack, zip(*batches)))
+        try:
+            xy = tuple(map(np.vstack, zip(*batches)))
+        except ValueError:
+            # This means that the batches differ in more than the batch
+            # dimension
+            shapes = [
+                np.array([batch[i].shape for batch in batches])
+                for i in range(len(batches[0]))
+            ]
+            N = shapes[0].sum(axis=0)[0]
+            shapes = [s.max(axis=0) for s in shapes]
+            shapes = [(N,) + tuple(s[1:].tolist()) for s in shapes]
+            xy = [
+                np.zeros(s, dtype=d.dtype)
+                for s, d in zip(shapes, batches[0])
+            ]
+            starts = [0]*max(map(len, shapes))
+            for batch in batches:
+                for xyi, data in zip(xy, batch):
+                    slices = tuple(
+                        slice(start, start+length)
+                        for start, length in zip(starts, data.shape)
+                    )
+                    xyi[slices] = data
+                starts[0] += len(batch[0])
+
         if len(xy) > 2:
             return list(xy[:-1]), xy[-1]
         else:
             return xy
+
 
     def _train_data(self, idxs=slice(None)):
         N = self._get_count(idxs)

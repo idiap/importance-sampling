@@ -7,6 +7,7 @@ import sys
 
 from keras.callbacks import BaseLogger, CallbackList, History, ProgbarLogger
 from keras.layers import Dropout, BatchNormalization
+from keras.utils import Sequence
 import numpy as np
 from blinker import signal
 
@@ -137,7 +138,7 @@ class _BaseImportanceTraining(object):
             on_scores=on_scores
         )
 
-    def fit_generator(self, train, steps_per_epoch, batch_size=32,
+    def fit_generator(self, train, steps_per_epoch=None, batch_size=32,
                       epochs=1, verbose=1, callbacks=None,
                       validation_data=None, validation_steps=None,
                       on_sample=None, on_scores=None):
@@ -164,17 +165,33 @@ class _BaseImportanceTraining(object):
             on_sample: callable that accepts the sampler, idxs, w, scores
             on_scores: callable that accepts the sampler and scores
         """
+        def sequence_gen(seq):
+            i = 0
+            while True:
+                yield seq[i]
+                i = (i+1) % len(seq)
+
         # Create the validation data to pass to the GeneratorDataset
         if validation_data is not None:
             if isinstance(validation_data, (tuple, list)):
                 test = validation_data
                 test_len = None
+            elif isinstance(validation_data, Sequence):
+                test = sequence_gen(validation_data)
+                test_len = len(validation_data) * batch_size
             else:
                 test = validation_data
                 test_len = validation_steps * batch_size
         else:
             test = (np.empty(shape=(0, 1)), np.empty(shape=(0, 1)))
             test_len = None
+
+        if isinstance(train, Sequence):
+            if steps_per_epoch is None:
+                steps_per_epoch = len(train)
+            train = sequence_gen(train)
+        elif steps_per_epoch is None:
+            raise ValueError("steps_per_epoch is not set")
 
         dataset = GeneratorDataset(train, test, test_len)
 
@@ -264,7 +281,7 @@ class _BaseImportanceTraining(object):
                     batch_logs[l] = o
                 callbacks.on_batch_end(step, batch_logs)
 
-                if on_scores is not None:
+                if on_scores is not None and hasattr(self, "_latest_scores"):
                     on_scores(
                         sampler,
                         self._latest_scores
