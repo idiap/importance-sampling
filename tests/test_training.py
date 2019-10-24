@@ -5,6 +5,8 @@
 
 import unittest
 
+from keras import backend as K
+from keras.callbacks import LambdaCallback
 from keras.layers import Dense, Input, dot
 from keras.models import Model, Sequential
 import numpy as np
@@ -140,6 +142,23 @@ class TestTraining(unittest.TestCase):
             )
             self.assertEqual(16, calls[0])
             calls[0] = 0
+
+    def test_metric_names(self):
+        def metric1(y, y_hat):
+            return K.mean((y - y_hat), axis=-1)
+
+        model = Sequential([
+            Dense(10, activation="relu", input_shape=(2,)),
+            Dense(10, activation="relu"),
+            Dense(2)
+        ])
+        model.compile("sgd", "mse", metrics=["mse", metric1])
+        for Training in self.TRAININGS:
+            wm = Training(model)
+            self.assertEqual(
+                tuple(wm.metrics_names),
+                ("loss", "mse", "metric1", "score")
+            )
 
 
 if __name__ == "__main__":

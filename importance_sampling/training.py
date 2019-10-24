@@ -251,8 +251,8 @@ class _BaseImportanceTraining(object):
             "steps": steps_per_epoch,
             "verbose": verbose,
             "do_validation": len(dataset.test_data) > 0,
-            "metrics": self._get_metric_names() + [
-                "val_" + n for n in self._get_metric_names()
+            "metrics": self.metrics_names + [
+                "val_" + n for n in self.metrics_names
             ]
         })
 
@@ -277,7 +277,7 @@ class _BaseImportanceTraining(object):
                 sampler.update(idxs, scores)
 
                 values = map(lambda x: x.mean(), [loss] + metrics)
-                for l, o in zip(self._get_metric_names(), values):
+                for l, o in zip(self.metrics_names, values):
                     batch_logs[l] = o
                 callbacks.on_batch_end(step, batch_logs)
 
@@ -307,7 +307,7 @@ class _BaseImportanceTraining(object):
                 )
                 epoch_logs = {
                     "val_" + l: o
-                    for l, o in zip(self._get_metric_names(), val)
+                    for l, o in zip(self.metrics_names, val)
                 }
             callbacks.on_epoch_end(epoch, epoch_logs)
             if self.model.model.stop_training:
@@ -317,11 +317,12 @@ class _BaseImportanceTraining(object):
 
         return self.history
 
-    def _get_metric_names(self):
+    @property
+    def metrics_names(self):
         metrics = self.original_model.metrics or []
         return (
             ["loss"] +
-            list(map(str, metrics)) +
+            [m if isinstance(m, str) else m.__name__ for m in metrics] +
             ["score"]
         )
 
