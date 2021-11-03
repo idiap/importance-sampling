@@ -38,6 +38,7 @@ class _BaseImportanceTraining(object):
             score=score,
             layer=layer
         )
+        self.original_model.optimizer = self.model.optimizer
         signal("is.sample").connect(self._on_sample)
         signal("is.score").connect(self._on_scores)
 
